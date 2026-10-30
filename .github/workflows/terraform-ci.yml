@@ -1,0 +1,46 @@
+name: terraform-ci
+
+# CI leve para o cluster pessoal do Juan: só checa que o código está formatado
+# e válido. NÃO roda plan/apply (exigiria credenciais OCI e acesso ao state S3),
+# então é seguro rodar em qualquer push/PR sem segredos no GitHub.
+
+on:
+  push:
+    branches: ["master"]
+  pull_request:
+    branches: ["master"]
+
+# Cancela runs antigos do mesmo branch/PR quando um novo push chega.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  terraform:
+    name: fmt + validate
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.5.7" # mesma versão que o Juan roda localmente
+          terraform_wrapper: false
+
+      - name: terraform fmt (check)
+        id: fmt
+        run: terraform fmt -check -recursive -diff
+
+      # validate precisa de init, mas SEM backend (não queremos tocar o S3 nem
+      # pedir credencial). -backend=false resolve os módulos e providers e valida
+      # a configuração offline.
+      - name: terraform init (sem backend)
+        run: terraform init -backend=false -input=false
+
+      - name: terraform validate
+        run: terraform validate -no-color
