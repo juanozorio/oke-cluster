@@ -1,0 +1,29 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: tududi
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    # IMPORTANTE: troque pelo repo GitHub onde você vai versionar apps/tududi/.
+    # O ArgoCD puxa manifests de um repo Git remoto (não de pastas locais).
+    # Ex. (seguindo seu padrão): https://github.com/juanozorio/oke-gitops
+    repoURL: https://github.com/juanozorio/CHANGE-ME
+    targetRevision: main
+    # Caminho da pasta dos manifests dentro do repo acima.
+    path: apps/tududi
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: tududi
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      # Respeita o Secret aplicado fora do Git (não será removido pelo prune,
+      # pois não faz parte do kustomization.yaml).
+      - ApplyOutOfSyncOnly=true

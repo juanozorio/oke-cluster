@@ -1,0 +1,45 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: tududi
+  namespace: tududi
+  labels:
+    app.kubernetes.io/name: tududi
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: tududi
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    # Apenas o ingress-nginx pode alcançar o pod na porta 3002
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: ingress-nginx
+      ports:
+        - protocol: TCP
+          port: 3002
+  egress:
+    # DNS (CoreDNS) - resolução de nomes
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+    # Saída HTTPS para internet (CalDAV externo, OIDC, apprise/push - opcionais)
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+            except:
+              - 10.0.0.0/8
+              - 172.16.0.0/12
+              - 192.168.0.0/16
+      ports:
+        - protocol: TCP
+          port: 443

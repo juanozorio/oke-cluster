@@ -1,0 +1,38 @@
+# Ignore Terraform state files
+*.tfstate*
+*.tfstate.backup
+*.tfplan
+# NÃO ignorar .terraform.lock.hcl: ele DEVE ser versionado (trava as versões
+# dos providers para builds reprodutíveis).
+*.bak
+
+
+# Ignore .terraform directory
+.terraform/
+
+# Ignore any generated files or directories
+*.tfvars
+*.tfvars.json
+*.tfvars.tf
+*.tfvars.tf.json
+terraform.tfstate*
+
+# Ignore SSH keys
+id_rsa*
+
+# Ignore output shell
+output-gen*
+tfplan
+
+# file with credentials (pega env.sh E .env.sh -- este tem suas credenciais OCI)
+env.sh
+.env.sh
+*.env.sh
+
+# Directory for sensible files and external files: i.e. env.sh / deployment.yaml
+temp
+
+# Tududi - Secret real NUNCA deve ser versionado (apenas secret.example.yaml é commitado)
+apps/tududi/secret.yaml
+apps/tududi/secret.real.yaml
+apps/**/secret.yaml

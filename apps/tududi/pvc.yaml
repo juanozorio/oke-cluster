@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: tududi-data
+  namespace: tududi
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: oci-bv
+  resources:
+    requests:
+      # 50Gi é o tamanho mínimo de um OCI Block Volume.
+      # Um único PVC guarda db/uploads/backups via subPath (economiza quota Always Free).
+      storage: 50Gi

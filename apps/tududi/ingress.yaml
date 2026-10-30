@@ -1,0 +1,38 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: tududi
+  namespace: tududi
+  labels:
+    app.kubernetes.io/name: tududi
+  annotations:
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/backend-protocol: "HTTP"
+    # Uploads (anexos de tarefas/notas) - permite corpo maior
+    nginx.ingress.kubernetes.io/proxy-body-size: "25m"
+    # Rate limiting na borda (defesa extra além do rate-limit interno do Tududi)
+    nginx.ingress.kubernetes.io/limit-rps: "15"
+    nginx.ingress.kubernetes.io/limit-connections: "20"
+    # NOTA sobre security headers:
+    # O administrador do ingress desabilitou "configuration-snippet", então os
+    # headers de segurança NÃO são injetados aqui. O Tududi já aplica, na própria
+    # aplicação (via helmet), HSTS, X-Content-Type-Options, CSP e afins quando
+    # NODE_ENV=production - que é como o deployment está configurado.
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts:
+        - tududi.ozorio.dev.br
+      secretName: tududi-tls
+  rules:
+    - host: tududi.ozorio.dev.br
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: tududi
+                port:
+                  number: 3002

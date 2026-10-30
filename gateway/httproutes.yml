@@ -1,0 +1,36 @@
+###############################################################
+# Ingress routes para ozorio.dev.br
+# TLS automático via cert-manager + Let's Encrypt
+#
+# Como usar:
+#   1. Copie o template abaixo
+#   2. Substitua MEUAPP, NAMESPACE, NOME-DO-SERVICE e PORTA
+#   3. kubectl apply -f gateway/httproutes.yml
+###############################################################
+
+# ---
+# apiVersion: networking.k8s.io/v1
+# kind: Ingress
+# metadata:
+#   name: MEUAPP-ingress
+#   namespace: NAMESPACE
+#   annotations:
+#     cert-manager.io/cluster-issuer: "letsencrypt-prod"
+#     nginx.ingress.kubernetes.io/ssl-redirect: "true"
+# spec:
+#   ingressClassName: nginx
+#   tls:
+#     - hosts:
+#         - MEUAPP.ozorio.dev.br
+#       secretName: MEUAPP-ozorio-tls
+#   rules:
+#     - host: MEUAPP.ozorio.dev.br
+#       http:
+#         paths:
+#           - path: /
+#             pathType: Prefix
+#             backend:
+#               service:
+#                 name: NOME-DO-SERVICE
+#                 port:
+#                   number: PORTA

@@ -1,0 +1,18 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: tududi
+  labels:
+    kubernetes.io/metadata.name: tududi
+    app.kubernetes.io/name: tududi
+    # Pod Security Admission.
+    # A imagem do Tududi precisa iniciar como root para fazer chown em /app e
+    # então dropar para o usuário 1001 (app) via su-exec. Esse padrão não é
+    # compatível com o nível "restricted" (que exige runAsNonRoot). Usamos
+    # "baseline" no enforce (bloqueia privilégios perigosos como hostNetwork,
+    # privileged, hostPath etc.) e mantemos "restricted" em audit/warn para
+    # visibilidade. A aplicação em si roda como não-root.
+    pod-security.kubernetes.io/enforce: baseline
+    pod-security.kubernetes.io/enforce-version: latest
+    pod-security.kubernetes.io/audit: restricted
+    pod-security.kubernetes.io/warn: restricted
