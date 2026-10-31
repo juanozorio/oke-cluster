@@ -9,6 +9,8 @@ spec:
   storageClassName: oci-bv
   resources:
     requests:
-      # 50Gi é o tamanho mínimo de um OCI Block Volume.
-      # Um único PVC guarda db/uploads/backups via subPath (economiza quota Always Free).
+      # TEMPORÁRIO (migração para free tier): o Deployment NÃO usa mais este PVC
+      # (agora emptyDir + Litestream). Ele fica só como cópia de segurança dos dados
+      # originais até a validação, e será removido na fase 2. 50Gi é o mínimo da
+      # OCI e estoura o limite de 200 GB gratuitos (custava ~R$ 0,36/dia).
       storage: 50Gi

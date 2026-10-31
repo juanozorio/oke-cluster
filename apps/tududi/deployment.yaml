@@ -30,6 +30,47 @@ spec:
         fsGroupChangePolicy: "OnRootMismatch"
         seccompProfile:
           type: RuntimeDefault
+      initContainers:
+        # Restaura o SQLite do Litestream ANTES do tududi subir (o disco do nó é efêmero).
+        # Comportamento testado:
+        #   - réplica existe          -> restaura (exit 0)
+        #   - sem nenhum backup       -> não faz nada (exit 0; primeira instalação)
+        #   - erro de rede/credencial -> FALHA (exit 1): o pod fica em Init:Error e
+        #     tenta de novo, em vez de subir com banco vazio e criar uma geração nova.
+        - name: restore-db
+          image: docker.io/litestream/litestream:0.3.13
+          command: ["litestream"]
+          args:
+            - restore
+            - -if-db-not-exists
+            - -if-replica-exists
+            - -config
+            - /etc/litestream/litestream.yml
+            - /app/db/production.sqlite3
+          envFrom:
+            - secretRef:
+                name: tududi-litestream-s3
+          volumeMounts:
+            - name: data
+              mountPath: /app/db
+              subPath: db
+            - name: litestream-config
+              mountPath: /etc/litestream
+              readOnly: true
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1001
+            readOnlyRootFilesystem: true
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              cpu: 200m
+              memory: 128Mi
       containers:
         - name: tududi
           image: docker.io/chrisvel/tududi:1.9.7
@@ -137,9 +178,12 @@ spec:
               cpu: 100m
               memory: 64Mi
       volumes:
+        # FREE TIER: o PVC de 50 GB (mínimo da OCI) estourava o limite de 200 GB de
+        # armazenamento gratuito (4 boot volumes de 47 GB + 50 GB = 238 GB) e custava
+        # ~R$ 0,36/dia. O banco (5 MB, sem uploads) agora vive no disco do nó e é
+        # restaurado do Litestream a cada início do pod (initContainer abaixo).
         - name: data
-          persistentVolumeClaim:
-            claimName: tududi-data
+          emptyDir: {}
         - name: tmp
           emptyDir: {}
         - name: litestream-config
