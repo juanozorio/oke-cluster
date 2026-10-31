@@ -15,25 +15,17 @@ metadata:
     - resources-finalizer.argocd.argoproj.io
 spec:
   project: default
-  source:
-    repoURL: https://kubernetes-sigs.github.io/metrics-server/
-    chart: metrics-server
-    targetRevision: 3.14.0
-    helm:
-      releaseName: metrics-server
-      valuesObject:
-        replicas: 1
-        resources:
-          requests:
-            cpu: 20m
-            memory: 40Mi
-          limits:
-            cpu: 100m
-            memory: 100Mi
-        args:
-          # O kubelet do OKE foi aceito SEM --kubelet-insecure-tls (testado), então
-          # a flag fica de fora: não desligue a validação de TLS sem necessidade.
-          - --kubelet-preferred-address-types=InternalIP
+  sources:
+    - repoURL: https://kubernetes-sigs.github.io/metrics-server/
+      chart: metrics-server
+      targetRevision: 3.14.0
+      helm:
+        releaseName: metrics-server
+        valueFiles:
+          - $values/kubernetes/addons/metrics-server/values.yaml
+    - repoURL: https://github.com/juanozorio/oke-cluster.git
+      targetRevision: master
+      ref: values
   destination:
     server: https://kubernetes.default.svc
     namespace: kube-system

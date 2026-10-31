@@ -1,14 +1,16 @@
 #!/usr/bin/env python3
 """Valida OFFLINE (sem acesso ao cluster) tudo que o ArgoCD vai aplicar.
 
-Para cada Application em infra/argocd-apps/ ele faz o que o ArgoCD faria:
+Para cada kubernetes/{addons,apps}/<nome>/application.yaml ele faz o que o ArgoCD faria:
   - chart de um repositório Helm  -> `helm template` com a mesma versão e os mesmos values
   - pasta deste repo com Chart.yaml        -> `helm template`
   - pasta deste repo com kustomization.yaml -> `kubectl kustomize`
   - pasta deste repo com YAMLs soltos      -> lê os arquivos
 e valida o resultado com kubeconform (esquemas do Kubernetes 1.34 + CRDs conhecidos).
 
-Também valida os próprios arquivos Application.
+Também valida os próprios arquivos Application, o kubernetes/bootstrap/root-app.yaml e
+confere que o filtro `include` do root-app enxerga EXATAMENTE os Applications que existem
+(um application.yaml fora do padrão ficaria invisível para o ArgoCD).
 
 Sources de OUTROS repositórios (ex.: baofeng-airsoft-docs) são ignorados: não dá para
 renderizá-los daqui.
@@ -136,11 +138,38 @@ def validate_source(app, src, tmp):
         kubeconform(out, label, strict=True)  # nosso: estrito (pega typos)
 
 
+def check_root_discovery(apps):
+    """O include do root-app tem que casar com todos os application.yaml (e só com eles)."""
+    root = yaml.safe_load(open(os.path.join(ROOT, "kubernetes", "bootstrap", "root-app.yaml")))
+    include = root["spec"]["source"]["directory"]["include"]
+    base = os.path.join(ROOT, root["spec"]["source"]["path"])
+    # {a,b}/*/application.yaml -> expande as chaves e usa glob do shell
+    head, tail = include.split("}", 1) if include.startswith("{") else ("", include)
+    alts = head[1:].split(",") if head else [""]
+    seen = set()
+    for alt in alts:
+        for f in glob.glob(os.path.join(base, alt + tail)):
+            seen.add(os.path.realpath(f))
+    expected = {os.path.realpath(f) for f in apps}
+    label = "root-app: include enxerga todos os application.yaml"
+    if seen == expected:
+        print(f"  OK    {label}  [{len(seen)} Applications]")
+    else:
+        print(f"  FALHA {label}")
+        for f in sorted(expected - seen):
+            print(f"        invisível para o root: {os.path.relpath(f, ROOT)}")
+        for f in sorted(seen - expected):
+            print(f"        inesperado: {os.path.relpath(f, ROOT)}")
+        failures.append(label)
+
+
 def main():
-    apps = sorted(glob.glob(os.path.join(ROOT, "infra", "argocd-apps", "*.yaml")))
-    print(f"== Application files ({len(apps)}) ==")
-    for f in apps:
+    apps = sorted(glob.glob(os.path.join(ROOT, "kubernetes", "*", "*", "application.yaml")))
+    root_file = os.path.join(ROOT, "kubernetes", "bootstrap", "root-app.yaml")
+    print(f"== Application files ({len(apps)} + root-app) ==")
+    for f in apps + [root_file]:
         kubeconform(open(f).read(), os.path.relpath(f, ROOT), strict=True)
+    check_root_discovery([f for f in apps if "/bootstrap/" not in f])
 
     print("\n== Conteúdo que cada Application aplica ==")
     with tempfile.TemporaryDirectory() as tmp:
@@ -148,8 +177,6 @@ def main():
             app = yaml.safe_load(open(f))
             if app.get("kind") != "Application":
                 continue
-            if app["metadata"]["name"] == "root-apps":
-                continue  # aponta para a própria pasta dos Applications (já validados acima)
             sources = app["spec"].get("sources") or [app["spec"]["source"]]
             for src in sources:
                 if "ref" in src and "chart" not in src and "path" not in src:

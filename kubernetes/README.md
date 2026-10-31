@@ -1,44 +1,60 @@
-# infra/ — Add-ons do cluster via GitOps (ArgoCD)
+# kubernetes/ — tudo que roda DENTRO do cluster (GitOps com ArgoCD)
 
-Aqui ficam os add-ons de infraestrutura (ingress-nginx, cert-manager, ...) versionados
-e gerenciados pelo **ArgoCD** que já roda no cluster. A fonte da verdade do "o que
-está instalado" passa a ser este repositório, não o estado solto no cluster.
+Aqui ficam os add-ons (ingress-nginx, cert-manager, ...) e os apps (tududi, escalafacil,
+...), versionados e gerenciados pelo **ArgoCD** que já roda no cluster. A fonte da
+verdade do "o que está instalado" é este repositório, não o estado solto no cluster.
 
-## Estrutura
+## A regra: uma pasta por coisa
+
+Para mexer no Grafana, no tududi ou no ingress, abra a pasta com o nome dele. O
+`application.yaml` (o "ponteiro" para o ArgoCD) e a configuração ficam **lado a lado**.
 
 ```
-infra/argocd-apps/
-  root-app.yaml            # App-of-Apps: observa esta pasta (prune desligado)
-  argocd.yaml              # o próprio ArgoCD (self-managed); values em argocd/values.yml
-  cluster-issuers.yaml     # emissor Let's Encrypt (manifesto em infra/cluster-issuers/)
-  cert-manager.yaml        # sync-wave -1  (CRDs com keep)
-  ingress-nginx.yaml       # sync-wave 0   (NodePort 30080/30443 do NLB)
-  metrics-server.yaml      # sync-wave 1   (kubectl top / HPA)
-  kube-prometheus-stack.yaml # sync-wave 2 (Prometheus+Grafana, sem persistência)
-  tududi.yaml              # manifests em apps/tududi (kustomize)
-  escalafacil.yaml         # chart em charts/escala-servir
-  baofeng-airsoft.yaml     # chart no repo baofeng-airsoft-docs
-apps/tududi/               # manifests do tududi (+ BACKUP.md)
-apps/monitoring/README.md  # como acessar Grafana/Prometheus
-charts/escala-servir/      # chart Helm do escalafacil; produção em values-prod.yaml
+kubernetes/
+  bootstrap/root-app.yaml      # o ÚNICO arquivo que se aplica à mão (App-of-Apps)
+  addons/                      # infraestrutura de terceiros (charts Helm pinados)
+    argocd/                    # o próprio ArgoCD (self-managed)
+    cert-manager/              # sync-wave -1  (CRDs com keep)
+    cluster-issuers/           # sync-wave 0   (emissor Let's Encrypt; manifests/)
+    ingress-nginx/             # sync-wave 0   (NodePort 30080/30443 do NLB)
+    metrics-server/            # sync-wave 1   (kubectl top / HPA)
+    kube-prometheus-stack/     # sync-wave 2   (Prometheus+Grafana, sem persistência)
+      application.yaml         #   chart + versão + namespace + política de sync
+      values.yaml              #   a configuração (o que você edita no dia a dia)
+  apps/                        # seus aplicativos
+    tududi/                    # manifests/ (kustomize) + BACKUP.md
+    escalafacil/               # chart/ (Helm próprio); produção em chart/values-prod.yaml
+    baofeng-airsoft/           # só o Application; o chart está no repo do app
+  ingress/                     # guia + modelo para expor um app (nada é aplicado)
 ```
+
+Padrão dentro de cada pasta:
+
+| Arquivo | Para quê |
+|---|---|
+| `application.yaml` | O ponteiro: de onde vem (chart/versão ou pasta), namespace, política de sync. |
+| `values.yaml` | A configuração do chart de terceiros. **Edite aqui** para mudar um add-on. |
+| `manifests/` ou `chart/` | O conteúdo, quando é nosso (kustomize ou Helm próprio). |
+
+O root enxerga só `addons/*/application.yaml` e `apps/*/application.yaml`. Os outros
+arquivos são lidos pelo Application da própria pasta, não pelo root.
 
 ## Bootstrap de um cluster novo (um comando)
 
-Com o ArgoCD instalado (`argocd/values.yml`) e os Secrets criados à mão
-(`tududi-secrets`, `tududi-litestream-s3`, `grafana-admin`):
+Com o ArgoCD instalado e os Secrets criados à mão (`tududi-secrets`,
+`tududi-litestream-s3`, `grafana-admin`):
 
 ```sh
-kubectl apply -f infra/argocd-apps/root-app.yaml
+kubectl apply -f kubernetes/bootstrap/root-app.yaml
 ```
 
-O root cria todos os Applications desta pasta, na ordem das sync-waves.
+O root cria todos os Applications, na ordem das sync-waves.
 
 ### Cuidado ao REMOVER um app
 
 O root roda com `prune: false` de propósito. Os Applications têm o finalizer
 `resources-finalizer`: apagar um `Application` apaga todos os recursos dele
-(inclusive PVCs). Por isso apagar o arquivo daqui **não** desinstala nada; para
+(inclusive PVCs). Por isso apagar a pasta daqui **não** desinstala nada; para
 desinstalar, faça `kubectl delete application <nome> -n argocd` conscientemente.
 
 ## O que vai (e o que NÃO vai) para o Git
@@ -48,7 +64,7 @@ editar um app pela interface do ArgoCD não grava nada no Git.** Se o cluster fo
 recriado, tudo que só existe na UI some (foi o caso do `baofeng-airsoft` até ser
 exportado para cá). Regras:
 
-- Crie/edite `Application` como YAML nesta pasta e dê push. A UI serve para
+- Crie/edite `Application` como YAML nesta árvore e abra um PR. A UI serve para
   **ver** estado, diff e logs, e para disparar sync.
 - Mudança manual em recurso vivo (`kubectl edit`, `kubectl set image`, UI) fica
   como *drift*: com `selfHeal` o ArgoCD desfaz; sem ele, o app aparece `OutOfSync`.
@@ -87,12 +103,14 @@ ArgoCD sem derrubar nada. Adotar = o ArgoCD passar a ser o dono, **sem recriar**
    (`kubectl delete secret -n <ns> -l owner=helm,name=<release>`), **nunca**
    `helm uninstall`.
 
-## Adicionar um add-on novo (fluxo normal)
+## Adicionar um add-on ou app novo (fluxo normal)
 
-1. Crie `infra/argocd-apps/<novo>.yaml` (copie um existente como molde, pine a versão).
-2. `git push`.
-3. `kubectl apply -f infra/argocd-apps/<novo>.yaml` — ou, se já usar o App-of-Apps,
-   nada: o `root-app` detecta o arquivo novo e cria o Application sozinho.
+1. Copie uma pasta existente como molde: `kubernetes/addons/<novo>/` (chart de terceiros:
+   `application.yaml` + `values.yaml`) ou `kubernetes/apps/<novo>/` (conteúdo nosso).
+   Pine a versão do chart.
+2. Rode `python3 scripts/validate_kubernetes.py` e abra o PR.
+3. Depois do merge, nada a aplicar: o `root-app` detecta a pasta nova e cria o
+   Application sozinho.
 
 ## Por que parar aqui (Nível 2/3)
 

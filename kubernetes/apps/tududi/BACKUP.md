@@ -44,7 +44,7 @@ Perda máxima de dados se o nó morrer: ~1 segundo de escritas.
      --from-literal=LITESTREAM_ACCESS_KEY_ID='<access-key>' \
      --from-literal=LITESTREAM_SECRET_ACCESS_KEY='<secret-key>'
    ```
-3. O ArgoCD aplica o restante (`infra/argocd-apps/tududi.yaml`).
+3. O ArgoCD aplica o restante (`kubernetes/apps/tududi/application.yaml`).
 
 ## Verificar que está replicando
 

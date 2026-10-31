@@ -1,12 +1,13 @@
 # App-of-Apps RAIZ: bootstrap do cluster com UM comando.
 #
-#   kubectl apply -f infra/argocd-apps/root-app.yaml
+#   kubectl apply -f kubernetes/bootstrap/root-app.yaml
 #
-# O ArgoCD passa a observar esta pasta (infra/argocd-apps/) e criar/sincronizar
-# todo Application que estiver nela. Adicionar um app = criar um YAML aqui + push.
+# O ArgoCD passa a varrer kubernetes/ e criar/sincronizar todo
+# kubernetes/addons/<nome>/application.yaml e kubernetes/apps/<nome>/application.yaml.
+# Adicionar um app = criar uma pasta nova com um application.yaml + PR.
 #
 # prune: FALSE (de propósito). Os Applications filhos têm o finalizer
-# resources-finalizer, então APAGAR um arquivo desta pasta e deixar o root podar
+# resources-finalizer, então APAGAR uma pasta de app e deixar o root podar
 # o Application apagaria também TODOS os recursos do app (inclusive o PVC do
 # tududi). Com prune desligado, remover um arquivo só deixa o Application
 # "órfão" no cluster; para desinstalar um app de verdade, apague-o de forma
@@ -26,11 +27,13 @@ spec:
   source:
     repoURL: https://github.com/juanozorio/oke-cluster.git
     targetRevision: master
-    path: infra/argocd-apps
+    path: kubernetes
     directory:
-      recurse: false
-      # Não gerencia a si mesmo (evita laço); só os filhos.
-      exclude: "root-app.yaml"
+      recurse: true
+      # SÓ os application.yaml de addons/ e apps/. Isto deixa de fora este
+      # bootstrap/ (o root não gerencia a si mesmo), os values.yaml, os manifestos
+      # e os charts, que são lidos pelos Applications filhos, não pelo root.
+      include: "{addons,apps}/*/application.yaml"
   destination:
     server: https://kubernetes.default.svc
     namespace: argocd

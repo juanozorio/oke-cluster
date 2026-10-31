@@ -1,0 +1,53 @@
+# kube-prometheus-stack ENXUTO e SEM PERSISTÊNCIA (métricas, dashboards, regras).
+#
+# Decisões de desenho para o cluster Always Free (4x A1.Flex, 840m de CPU
+# alocável por nó):
+#  - SEM volume persistente: Prometheus usa emptyDir. Um PVC custaria 50 GB de
+#    block volume (mínimo da OCI) e o free tier já está acima de 200 GB. O
+#    histórico some quando o pod do Prometheus é recriado; retention curta.
+#  - SEM Alertmanager (ninguém para notificar). Grafana exposto por Ingress em
+#    https://grafana.ozorio.dev.br (precisa do registro DNS; ver README).
+#  - Componentes do control plane DESLIGADOS: no OKE o control plane é gerenciado
+#    pela Oracle e não é acessível para scrape (daria targets "down" para sempre).
+#  - Admission webhook DESLIGADO: remove os Jobs de certgen e uma peça frágil.
+#
+# Complementa (não substitui) o metrics-server: o kube-prometheus não expõe a
+# Metrics API, então `kubectl top` e HPA continuam dependendo dele.
+#
+# Senha do Grafana: Secret `grafana-admin` criado FORA do Git (ver README).
+#
+# sync-wave "2": depois de cert-manager (-1), ingress (0) e metrics-server (1).
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: kube-prometheus-stack
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  sources:
+    - repoURL: https://prometheus-community.github.io/helm-charts
+      chart: kube-prometheus-stack
+      targetRevision: 92.16.1
+      helm:
+        releaseName: kube-prometheus-stack
+        valueFiles:
+          - $values/kubernetes/addons/kube-prometheus-stack/values.yaml
+    - repoURL: https://github.com/juanozorio/oke-cluster.git
+      targetRevision: master
+      ref: values
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: monitoring
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      # Obrigatório: os CRDs do prometheus-operator são grandes demais para a
+      # annotation last-applied do apply comum.
+      - ServerSideApply=true

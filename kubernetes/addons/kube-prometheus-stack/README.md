@@ -1,6 +1,6 @@
 # Monitoramento (kube-prometheus-stack enxuto, sem persistência)
 
-Definido em [`infra/argocd-apps/kube-prometheus-stack.yaml`](../../infra/argocd-apps/kube-prometheus-stack.yaml).
+Definido em [`application.yaml`](application.yaml) (chart) e [`values.yaml`](values.yaml) (configuração).
 Prometheus + Grafana + kube-state-metrics + node-exporter. **Sem** Alertmanager,
 **sem** volume persistente e **sem** Ingress público.
 

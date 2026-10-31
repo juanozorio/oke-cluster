@@ -1,0 +1,23 @@
+# Configuração do ingress-nginx. Quem lê isto é o ./application.yaml (ao lado).
+# Para mudar algo: edite aqui, abra PR e faça merge; o ArgoCD aplica.
+# A versão do chart fica no application.yaml (targetRevision).
+
+controller:
+  # Os limits abaixo NÃO estavam no `helm install` original: foram aplicados
+  # à mão no cluster. Entram aqui para o GitOps não os remover (e não
+  # recriar o controller sem necessidade).
+  resources:
+    requests:
+      cpu: 100m
+      memory: 90Mi
+    limits:
+      cpu: 300m
+      memory: 256Mi
+  service:
+    type: NodePort
+    nodePorts:
+      http: 30080
+      https: 30443
+    annotations:
+      oci-network-load-balancer.oraclecloud.com/security-list-management-mode: All
+      oci.oraclecloud.com/load-balancer-type: nlb
