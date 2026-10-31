@@ -7,7 +7,6 @@ namespace: tududi
 # O Secret é aplicado fora do Git (kubectl / Sealed Secrets) - ver secret.example.yaml.
 resources:
   - namespace.yaml
-  - pvc.yaml
   - deployment.yaml
   - service.yaml
   - ingress.yaml
