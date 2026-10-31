@@ -4,15 +4,26 @@ Definido em [`infra/argocd-apps/kube-prometheus-stack.yaml`](../../infra/argocd-
 Prometheus + Grafana + kube-state-metrics + node-exporter. **Sem** Alertmanager,
 **sem** volume persistente e **sem** Ingress público.
 
-## Acessar o Grafana (port-forward)
+## Acessar o Grafana
+
+**Pela internet:** https://grafana.ozorio.dev.br (usuário `admin`).
+
+Pré-requisito (uma vez, no registro.br): registro DNS **A** `grafana` ->
+`129.213.129.75` (o IP do NLB). Não há wildcard no domínio; sem esse registro o
+cert-manager não consegue emitir o certificado (o desafio HTTP-01 falha).
 
 ```sh
 # senha do admin (fica só no cluster, no Secret grafana-admin)
 kubectl get secret grafana-admin -n monitoring -o jsonpath='{.data.admin-password}' | base64 -d; echo
-
-kubectl port-forward -n monitoring svc/kube-prometheus-stack-grafana 3000:80
-# abra http://localhost:3000  (usuário: admin)
 ```
+
+**Sem DNS / só local:** `kubectl port-forward -n monitoring svc/kube-prometheus-stack-grafana 3000:80`
+e abra http://localhost:3000.
+
+Proteções: o Grafana bloqueia o login por 5 minutos após 5 tentativas erradas
+(padrão `disable_brute_force_login_protection = false`), o cadastro público está
+desligado (`allow_sign_up = false`), a senha é aleatória de 24 caracteres e o
+nginx limita a 10 req/s por IP.
 
 Dashboards úteis já vêm provisionados: *Kubernetes / Compute Resources / Cluster*,
 *... / Namespace (Pods)*, *Node Exporter / Nodes*.
@@ -35,14 +46,6 @@ kubectl port-forward -n monitoring svc/kube-prometheus-stack-prometheus 9090:909
 - **Control plane:** etcd, scheduler e controller-manager são gerenciados pela
   Oracle (OKE) e não são acessíveis para scrape.
 - **Metrics API:** quem serve `kubectl top`/HPA continua sendo o metrics-server.
-
-## Expor o Grafana publicamente (se um dia quiser)
-
-Exige criar o registro DNS `grafana.ozorio.dev.br` (não há wildcard hoje) e
-adicionar em `valuesObject.grafana`: `ingress.enabled: true`, `ingressClassName:
-nginx`, `hosts`, `tls` e a annotation `cert-manager.io/cluster-issuer:
-letsencrypt-prod`. O Grafana não tem proteção contra força bruta de senha por
-padrão: use a senha longa gerada e considere restringir por IP.
 
 ## Secret (fora do Git)
 
