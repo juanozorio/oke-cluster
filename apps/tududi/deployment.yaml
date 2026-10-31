@@ -108,7 +108,9 @@ spec:
         # Lê o MESMO volume do SQLite e faz streaming do WAL para o Object Storage.
         # Perda máxima em caso de desastre: segundos (não as 24h de um backup diário).
         - name: litestream
-          image: litestream/litestream:0.3.13
+          # Nome TOTALMENTE qualificado (docker.io/...): o CRI-O do OKE recusa
+          # "short names" ambíguos (short-name mode enforcing).
+          image: docker.io/litestream/litestream:0.3.13
           args: ["replicate", "-config", "/etc/litestream/litestream.yml"]
           envFrom:
             - secretRef:
