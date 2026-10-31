@@ -9,6 +9,7 @@ está instalado" passa a ser este repositório, não o estado solto no cluster.
 ```
 infra/argocd-apps/
   root-app.yaml            # App-of-Apps: observa esta pasta (prune desligado)
+  argocd.yaml              # o próprio ArgoCD (self-managed); values em argocd/values.yml
   cert-manager.yaml        # sync-wave -1  (CRDs com keep)
   ingress-nginx.yaml       # sync-wave 0   (NodePort 30080/30443 do NLB)
   metrics-server.yaml      # sync-wave 1   (kubectl top / HPA)

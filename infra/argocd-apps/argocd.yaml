@@ -1,0 +1,60 @@
+# O próprio ArgoCD sob GitOps (self-managed). Chart argo-cd 10.1.2 (app v3.4.4),
+# a mesma versão instalada com `helm install` em 2026-07-06.
+#
+# Os valores NÃO ficam aqui: vêm de argocd/values.yml (fonte única, o mesmo arquivo
+# que se usaria num `helm upgrade`). Isto exige o ArgoCD >= 2.6 (multi-source).
+#
+# CUIDADOS DE UM ARGOCD QUE SE GERENCIA:
+#  - SEM finalizer: apagar este Application com finalizer apagaria o próprio
+#    ArgoCD (e, junto, todos os outros Applications).
+#  - prune: FALSE: o ArgoCD não deve podar a si mesmo; uma poda errada derruba o
+#    controller e o GitOps para de funcionar justamente quando seria preciso.
+#  - Secrets argocd-secret / argocd-notifications-secret: o chart os renderiza
+#    VAZIOS, mas o ArgoCD escreve neles em runtime (admin.password,
+#    server.secretkey, ...). Sem ignoreDifferences o selfHeal apagaria a chave de
+#    sessão e a senha do admin. Por isso o /data é ignorado.
+#  - Para mexer no ArgoCD: edite argocd/values.yml, abra PR e faça merge. Se o
+#    controller travar (OOM, por exemplo), o sync não roda: use
+#    `helm upgrade argocd argo/argo-cd --version 10.1.2 -n argocd -f argocd/values.yml`.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: argocd
+  namespace: argocd
+  annotations:
+    # Sobe primeiro: os outros Applications dependem do ArgoCD funcionando.
+    argocd.argoproj.io/sync-wave: "-2"
+spec:
+  project: default
+  sources:
+    - repoURL: https://argoproj.github.io/argo-helm
+      chart: argo-cd
+      targetRevision: 10.1.2
+      helm:
+        releaseName: argocd
+        valueFiles:
+          - $values/argocd/values.yml
+    - repoURL: https://github.com/juanozorio/oke-cluster.git
+      targetRevision: master
+      ref: values
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: argocd
+  ignoreDifferences:
+    - group: ""
+      kind: Secret
+      name: argocd-secret
+      jsonPointers:
+        - /data
+    - group: ""
+      kind: Secret
+      name: argocd-notifications-secret
+      jsonPointers:
+        - /data
+  syncPolicy:
+    automated:
+      prune: false
+      selfHeal: true
+    syncOptions:
+      - ServerSideApply=true
+      - RespectIgnoreDifferences=true
