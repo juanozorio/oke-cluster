@@ -250,14 +250,6 @@ Se o `destroy` falhar (erro `CompartmentAlreadyExists`, cluster preso etc.), apa
 
 ## Problemas conhecidos
 
-- **Aviso `hashicorp/oci` no `terraform init`:** os módulos locais (`cluster/`, `compartment/`,
-  `loadbalancer/`, `network/`) usam recursos `oci_*` sem declarar `required_providers`, então
-  o Terraform assume o provider antigo `hashicorp/oci` (por isso ele está no
-  `.terraform.lock.hcl`). Os 16 recursos desses módulos estão no state sob esse provider.
-  É inofensivo. Corrigir exige declarar `oracle/oci` nos módulos **e** rodar
-  `terraform state replace-provider hashicorp/oci oracle/oci`, que reescreve o state no S3:
-  faça com backup do state e confira que o `plan` dá "No changes" antes e depois.
-
 - **`Out of host capacity`** — a região não tem instância A1 livre no momento. Espere ou tente outra região (`region` em `variables.tf`). Upgrade para `Pay As You Go` aumenta a disponibilidade sem cobrar pelo uso gratuito.
 - **`401-NotAuthenticated` / `kubectl` parou** — token da OCI expirou:
   ```sh
