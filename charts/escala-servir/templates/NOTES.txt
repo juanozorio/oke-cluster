@@ -1,0 +1,23 @@
+EscalaServir foi implantado com sucesso!
+
+Release:   {{ .Release.Name }}
+Namespace: {{ .Release.Namespace }}
+Imagem:    {{ .Values.image.repository }}:{{ include "escala-servir.imageTag" . }}
+
+{{- if .Values.ingress.enabled }}
+
+Acesse pela(s) URL(s) do Ingress:
+{{- range .Values.ingress.hosts }}
+  http{{ if $.Values.ingress.tls }}s{{ end }}://{{ .host }}
+{{- end }}
+{{- else }}
+
+O Service é do tipo {{ .Values.service.type }}. Para acessar localmente:
+
+  kubectl --namespace {{ .Release.Namespace }} port-forward svc/{{ include "escala-servir.fullname" . }} 8080:{{ .Values.service.port }}
+
+  Depois abra: http://localhost:8080
+{{- end }}
+
+Verifique os pods:
+  kubectl --namespace {{ .Release.Namespace }} get pods -l "app.kubernetes.io/instance={{ .Release.Name }}"

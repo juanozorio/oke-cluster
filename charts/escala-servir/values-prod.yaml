@@ -1,0 +1,31 @@
+# Valores de PRODUÇÃO do escalafacil (https://escalafacil.ozorio.dev.br).
+# É o único arquivo que você edita no dia a dia: para publicar uma versão nova,
+# troque image.tag e dê push -- o ArgoCD faz o rollout.
+
+image:
+  # ---------------------------------------------------------------------------
+  # TRANSIÇÃO: estes dois valores ainda apontam para a imagem EFÊMERA do ttl.sh
+  # (a que roda hoje no cluster), para a adoção pelo ArgoCD não gerar nenhuma
+  # diferença. Ela expira ~20h (BRT) de 2026-10-31. Assim que o CI publicar no
+  # Docker Hub, troque para:
+  #   repository: docker.io/juanozorio/escala-servir
+  #   tag: "<sha12 do commit>"
+  #   pullPolicy: IfNotPresent
+  # ---------------------------------------------------------------------------
+  repository: ttl.sh/escala-servir-ec3102f2ef97
+  tag: 24h
+  pullPolicy: Always
+
+ingress:
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+  hosts:
+    - host: escalafacil.ozorio.dev.br
+      paths:
+        - path: /
+          pathType: Prefix
+  tls:
+    - hosts:
+        - escalafacil.ozorio.dev.br
+      secretName: escalafacil-tls

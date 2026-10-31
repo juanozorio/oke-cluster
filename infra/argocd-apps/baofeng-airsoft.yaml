@@ -1,0 +1,23 @@
+# baofeng-airsoft: este Application foi criado pela UI do ArgoCD e só existia no
+# cluster (não estava em nenhum repositório). Está aqui, idêntico ao que roda,
+# para que um cluster novo volte com ele via `kubectl apply` / root-app.
+#
+# O chart e o conteúdo do site ficam no repo do próprio app:
+# https://github.com/juanozorio/baofeng-airsoft-docs (pasta helm/).
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: baofeng-airsoft
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/juanozorio/baofeng-airsoft-docs
+    path: helm
+    targetRevision: HEAD
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: default
+  syncPolicy:
+    syncOptions:
+      - CreateNamespace=true
