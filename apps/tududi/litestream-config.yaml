@@ -1,0 +1,32 @@
+# Configuração do Litestream: replicação CONTÍNUA do SQLite do tududi para o
+# OCI Object Storage (bucket tududi-backups) via endpoint S3-compatível.
+#
+# O Litestream faz streaming do WAL -> perda máxima de segundos, não 24h.
+# Restore: litestream restore -config /etc/litestream.yml /app/db/production.sqlite3
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: tududi-litestream
+  namespace: tududi
+  labels:
+    app.kubernetes.io/name: tududi
+    app.kubernetes.io/component: backup
+data:
+  litestream.yml: |
+    dbs:
+      - path: /app/db/production.sqlite3
+        replicas:
+          - type: s3
+            # OCI Object Storage via API S3-compatível.
+            endpoint: https://idfrvl6pz5cq.compat.objectstorage.us-ashburn-1.oraclecloud.com
+            region: us-ashburn-1
+            bucket: tududi-backups
+            path: litestream/tududi
+            # force-path-style é obrigatório no endpoint S3-compat da OCI.
+            force-path-style: true
+            # Credenciais S3 (Customer Secret Key) vêm do Secret tududi-litestream-s3.
+            access-key-id: ${LITESTREAM_ACCESS_KEY_ID}
+            secret-access-key: ${LITESTREAM_SECRET_ACCESS_KEY}
+            # Retenção: snapshots a cada 24h, mantém 720h (30 dias) de histórico.
+            retention: 720h
+            snapshot-interval: 24h
