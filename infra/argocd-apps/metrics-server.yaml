@@ -31,9 +31,8 @@ spec:
             cpu: 100m
             memory: 100Mi
         args:
-          # O kubelet do OKE usa certificado não assinado pela CA do cluster.
-          # Só habilite se o metrics-server logar "x509: cannot validate certificate".
-          # - --kubelet-insecure-tls
+          # O kubelet do OKE foi aceito SEM --kubelet-insecure-tls (testado), então
+          # a flag fica de fora: não desligue a validação de TLS sem necessidade.
           - --kubelet-preferred-address-types=InternalIP
   destination:
     server: https://kubernetes.default.svc

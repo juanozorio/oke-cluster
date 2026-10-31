@@ -3,18 +3,14 @@
 # troque image.tag e dê push -- o ArgoCD faz o rollout.
 
 image:
-  # ---------------------------------------------------------------------------
-  # TRANSIÇÃO: estes dois valores ainda apontam para a imagem EFÊMERA do ttl.sh
-  # (a que roda hoje no cluster), para a adoção pelo ArgoCD não gerar nenhuma
-  # diferença. Ela expira ~20h (BRT) de 2026-10-31. Assim que o CI publicar no
-  # Docker Hub, troque para:
-  #   repository: docker.io/juanozorio/escala-servir
-  #   tag: "<sha12 do commit>"
-  #   pullPolicy: IfNotPresent
-  # ---------------------------------------------------------------------------
-  repository: ttl.sh/escala-servir-ec3102f2ef97
-  tag: 24h
-  pullPolicy: Always
+  # Imagem permanente no Docker Hub (público), publicada pelo CI do repo
+  # escala-aguias a cada merge na master. Tag = commit curto (12 chars).
+  # Para publicar uma versão nova: troque a tag abaixo, abra PR e faça merge;
+  # o ArgoCD faz o rollout. Nome totalmente qualificado: o CRI-O do OKE recusa
+  # "short names".
+  repository: docker.io/juanozorio/escala-servir
+  tag: "c5029de079c7"
+  pullPolicy: IfNotPresent
 
 ingress:
   annotations:

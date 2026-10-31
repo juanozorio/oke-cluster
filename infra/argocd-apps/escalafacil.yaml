@@ -29,10 +29,11 @@ spec:
     server: https://kubernetes.default.svc
     namespace: escala
   syncPolicy:
-    # Adoção segura: sync MANUAL na primeira vez. Depois de confirmar que o diff
-    # é vazio, descomente o bloco automated e dê push.
-    # automated:
-    #   prune: true
-    #   selfHeal: true
+    # Sync automático: o repo é a fonte da verdade. selfHeal desfaz qualquer
+    # mudança manual (kubectl set image, edição na UI); prune remove o que
+    # sair do chart.
+    automated:
+      prune: true
+      selfHeal: true
     syncOptions:
       - CreateNamespace=true
