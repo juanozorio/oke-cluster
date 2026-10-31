@@ -104,9 +104,42 @@ spec:
             periodSeconds: 10
             timeoutSeconds: 5
             failureThreshold: 6
+        # --- Sidecar de backup contínuo (Litestream) ---
+        # Lê o MESMO volume do SQLite e faz streaming do WAL para o Object Storage.
+        # Perda máxima em caso de desastre: segundos (não as 24h de um backup diário).
+        - name: litestream
+          image: litestream/litestream:0.3.13
+          args: ["replicate", "-config", "/etc/litestream/litestream.yml"]
+          envFrom:
+            - secretRef:
+                name: tududi-litestream-s3
+          volumeMounts:
+            - name: data
+              mountPath: /app/db
+              subPath: db
+            - name: litestream-config
+              mountPath: /etc/litestream
+              readOnly: true
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1001
+            readOnlyRootFilesystem: true
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              cpu: 100m
+              memory: 64Mi
       volumes:
         - name: data
           persistentVolumeClaim:
             claimName: tududi-data
         - name: tmp
           emptyDir: {}
+        - name: litestream-config
+          configMap:
+            name: tududi-litestream

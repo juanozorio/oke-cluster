@@ -12,6 +12,7 @@ resources:
   - service.yaml
   - ingress.yaml
   - networkpolicy.yaml
+  - litestream-config.yaml
 
 labels:
   - pairs:
