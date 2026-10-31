@@ -25,13 +25,15 @@ server:
     tls: true
 
 controller:
+  # 512Mi/1Gi: com 512Mi o controller levava OOMKill ao carregar os CRDs do
+  # kube-prometheus-stack (pico medido: ~650Mi) e o ArgoCD parava de reconciliar.
   resources:
     requests:
       cpu: 100m
-      memory: 256Mi
+      memory: 512Mi
     limits:
       cpu: 500m
-      memory: 512Mi
+      memory: 1Gi
 
 repoServer:
   resources:

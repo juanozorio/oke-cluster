@@ -105,13 +105,15 @@ spec:
               cpu: 300m
               memory: 512Mi
           sidecar:
+            # 64Mi dava OOMKilled: os sidecars carregam todos os ConfigMaps de
+            # dashboards/datasources do stack.
             resources:
               requests:
                 cpu: 10m
-                memory: 32Mi
+                memory: 64Mi
               limits:
                 cpu: 100m
-                memory: 64Mi
+                memory: 160Mi
 
         # ---- Exporters ----
         kube-state-metrics:
