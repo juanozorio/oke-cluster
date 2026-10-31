@@ -1,0 +1,40 @@
+# App-of-Apps RAIZ (Nível 3) -- OPCIONAL, pronto para quando você quiser.
+#
+# Hoje você aplica cada Application à mão:
+#   kubectl apply -f infra/argocd-apps/cert-manager.yaml
+#   kubectl apply -f infra/argocd-apps/ingress-nginx.yaml
+#
+# Quando tiver mais add-ons e quiser bootstrap com UM comando, aplique ESTE
+# arquivo. Ele faz o ArgoCD observar a pasta infra/argocd-apps/ e criar/sincronizar
+# automaticamente todo Application que estiver lá -- adicionar add-on passa a ser
+# só "criar um YAML na pasta + git push".
+#
+#   kubectl apply -f infra/argocd-apps/root-app.yaml
+#
+# IMPORTANTE: troque <SEU-REPO> abaixo pela URL real quando for usar.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: root-apps
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/juanozorio/oke-cluster.git
+    targetRevision: master
+    path: infra/argocd-apps
+    directory:
+      recurse: false
+      # Não deixa o root gerenciar a si mesmo (evita loop); ele só cria os filhos.
+      exclude: "root-app.yaml"
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: argocd
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

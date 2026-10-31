@@ -1,0 +1,69 @@
+# cert-manager gerenciado pelo ArgoCD (GitOps).
+# Versão PINADA na mesma que já roda (v1.19.2) para adotar sem upgrade acidental.
+#
+# ATENÇÃO (migração): hoje o cert-manager foi instalado por MANIFESTO ESTÁTICO
+# (kubectl apply), NÃO por Helm. Ao adotar via ArgoCD+Helm, os CRDs e recursos
+# já existentes precisam ser adotados com ServerSideApply. Faça a PRIMEIRA sync
+# em modo MANUAL e revise o diff: deve ser só mudança de ownership/labels, nunca
+# recriação dos CRDs (recriar CRD apagaria seus Certificate/ClusterIssuer!).
+#
+# sync-wave "-1": cert-manager (e seus CRDs) PRECISA subir ANTES dos
+# Certificate/ClusterIssuer/ingress que dependem dele.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: cert-manager
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "-1"
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: https://charts.jetstack.io
+    chart: cert-manager
+    targetRevision: v1.19.2
+    helm:
+      releaseName: cert-manager
+      valuesObject:
+        # Instala os CRDs junto com o chart. Como já existem no cluster, o
+        # ServerSideApply abaixo os ADOTA em vez de recriar.
+        crds:
+          enabled: true
+          keep: true # nunca remover CRDs em um prune (protege seus Certificates)
+        resources:
+          requests:
+            cpu: 10m
+            memory: 64Mi
+          limits:
+            cpu: 100m
+            memory: 128Mi
+        webhook:
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              cpu: 100m
+              memory: 64Mi
+        cainjector:
+          resources:
+            requests:
+              cpu: 10m
+              memory: 64Mi
+            limits:
+              cpu: 100m
+              memory: 128Mi
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: cert-manager
+  syncPolicy:
+    # Adoção segura: PRIMEIRA sync manual. Só ligue automated após confirmar
+    # que o diff não recria CRDs. Então descomente:
+    # automated:
+    #   prune: true
+    #   selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true

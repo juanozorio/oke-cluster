@@ -1,0 +1,58 @@
+# ingress-nginx gerenciado pelo ArgoCD (GitOps).
+# Versão PINADA na mesma que já está rodando no cluster (chart 4.14.3 / app 1.14.3),
+# para adotar o recurso existente SEM causar upgrade acidental.
+#
+# NodePort 30080/30443: é o que o Network Load Balancer da OCI aponta como backend.
+# NÃO mudar sem atualizar o loadbalancer no Terraform.
+#
+# sync-wave "0": sobe junto com os apps base (o cert-manager vai em wave -1, antes).
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: ingress-nginx
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: https://kubernetes.github.io/ingress-nginx
+    chart: ingress-nginx
+    targetRevision: 4.14.3
+    helm:
+      releaseName: ingress-nginx
+      valuesObject:
+        controller:
+          # NodePort fixo que o NLB da OCI usa como backend.
+          service:
+            type: NodePort
+            nodePorts:
+              http: 30080
+              https: 30443
+          replicaCount: 1
+          resources:
+            requests:
+              cpu: 100m
+              memory: 90Mi
+            limits:
+              cpu: 300m
+              memory: 256Mi
+          # Free tier: 1 réplica, sem admission webhook pesado em HA.
+          admissionWebhooks:
+            enabled: true
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: ingress-nginx
+  syncPolicy:
+    # Adoção segura: comece com sync MANUAL (sem automated) para revisar o diff
+    # contra o que já está instalado. Depois de confirmar que o diff é só
+    # ownership (sem recriar o Service/LoadBalancer), descomente o bloco automated.
+    #
+    # automated:
+    #   prune: true
+    #   selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true # adota recursos criados fora do Helm sem recriar
