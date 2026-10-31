@@ -1,11 +1,12 @@
 # ingress-nginx gerenciado pelo ArgoCD (GitOps).
-# Versão PINADA na mesma que já está rodando no cluster (chart 4.14.3 / app 1.14.3),
-# para adotar o recurso existente SEM causar upgrade acidental.
+# Versão PINADA na que já roda (chart 4.14.3 / app 1.14.3). Os values abaixo são
+# EXATAMENTE os usados na instalação original (`helm get values`), e o
+# `kubectl diff` do chart renderizado contra o cluster dá vazio.
 #
-# NodePort 30080/30443: é o que o Network Load Balancer da OCI aponta como backend.
-# NÃO mudar sem atualizar o loadbalancer no Terraform.
+# NodePort 30080/30443: é o que o Network Load Balancer da OCI aponta como backend
+# (ver loadbalancer/ no Terraform). NÃO mude sem atualizar o Terraform.
 #
-# sync-wave "0": sobe junto com os apps base (o cert-manager vai em wave -1, antes).
+# sync-wave "0": sobe depois do cert-manager (wave -1).
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
@@ -25,13 +26,9 @@ spec:
       releaseName: ingress-nginx
       valuesObject:
         controller:
-          # NodePort fixo que o NLB da OCI usa como backend.
-          service:
-            type: NodePort
-            nodePorts:
-              http: 30080
-              https: 30443
-          replicaCount: 1
+          # Os limits abaixo NÃO estavam no `helm install` original: foram aplicados
+          # à mão no cluster. Entram aqui para o GitOps não os remover (e não
+          # recriar o controller sem necessidade).
           resources:
             requests:
               cpu: 100m
@@ -39,20 +36,21 @@ spec:
             limits:
               cpu: 300m
               memory: 256Mi
-          # Free tier: 1 réplica, sem admission webhook pesado em HA.
-          admissionWebhooks:
-            enabled: true
+          service:
+            type: NodePort
+            nodePorts:
+              http: 30080
+              https: 30443
+            annotations:
+              oci-network-load-balancer.oraclecloud.com/security-list-management-mode: All
+              oci.oraclecloud.com/load-balancer-type: nlb
   destination:
     server: https://kubernetes.default.svc
     namespace: ingress-nginx
   syncPolicy:
-    # Adoção segura: comece com sync MANUAL (sem automated) para revisar o diff
-    # contra o que já está instalado. Depois de confirmar que o diff é só
-    # ownership (sem recriar o Service/LoadBalancer), descomente o bloco automated.
-    #
-    # automated:
-    #   prune: true
-    #   selfHeal: true
+    automated:
+      prune: true
+      selfHeal: true
     syncOptions:
       - CreateNamespace=true
-      - ServerSideApply=true # adota recursos criados fora do Helm sem recriar
+      - ServerSideApply=true

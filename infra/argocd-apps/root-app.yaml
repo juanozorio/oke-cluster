@@ -1,17 +1,19 @@
-# App-of-Apps RAIZ (Nível 3) -- OPCIONAL, pronto para quando você quiser.
-#
-# Hoje você aplica cada Application à mão:
-#   kubectl apply -f infra/argocd-apps/cert-manager.yaml
-#   kubectl apply -f infra/argocd-apps/ingress-nginx.yaml
-#
-# Quando tiver mais add-ons e quiser bootstrap com UM comando, aplique ESTE
-# arquivo. Ele faz o ArgoCD observar a pasta infra/argocd-apps/ e criar/sincronizar
-# automaticamente todo Application que estiver lá -- adicionar add-on passa a ser
-# só "criar um YAML na pasta + git push".
+# App-of-Apps RAIZ: bootstrap do cluster com UM comando.
 #
 #   kubectl apply -f infra/argocd-apps/root-app.yaml
 #
-# IMPORTANTE: troque <SEU-REPO> abaixo pela URL real quando for usar.
+# O ArgoCD passa a observar esta pasta (infra/argocd-apps/) e criar/sincronizar
+# todo Application que estiver nela. Adicionar um app = criar um YAML aqui + push.
+#
+# prune: FALSE (de propósito). Os Applications filhos têm o finalizer
+# resources-finalizer, então APAGAR um arquivo desta pasta e deixar o root podar
+# o Application apagaria também TODOS os recursos do app (inclusive o PVC do
+# tududi). Com prune desligado, remover um arquivo só deixa o Application
+# "órfão" no cluster; para desinstalar um app de verdade, apague-o de forma
+# consciente (kubectl delete application <nome> -n argocd).
+#
+# O baofeng-airsoft não tem sync automático (igual ao original criado pela UI):
+# o root cria/atualiza o objeto Application, mas não força o sync dos recursos.
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
@@ -27,14 +29,12 @@ spec:
     path: infra/argocd-apps
     directory:
       recurse: false
-      # Não deixa o root gerenciar a si mesmo (evita loop); ele só cria os filhos.
+      # Não gerencia a si mesmo (evita laço); só os filhos.
       exclude: "root-app.yaml"
   destination:
     server: https://kubernetes.default.svc
     namespace: argocd
   syncPolicy:
     automated:
-      prune: true
+      prune: false
       selfHeal: true
-    syncOptions:
-      - CreateNamespace=true

@@ -1,0 +1,143 @@
+# kube-prometheus-stack ENXUTO e SEM PERSISTÊNCIA (métricas, dashboards, regras).
+#
+# Decisões de desenho para o cluster Always Free (4x A1.Flex, 840m de CPU
+# alocável por nó):
+#  - SEM volume persistente: Prometheus usa emptyDir. Um PVC custaria 50 GB de
+#    block volume (mínimo da OCI) e o free tier já está acima de 200 GB. O
+#    histórico some quando o pod do Prometheus é recriado; retention curta.
+#  - SEM Alertmanager (ninguém para notificar) e SEM Ingress público do Grafana:
+#    acesso por port-forward (ver apps/monitoring/README.md).
+#  - Componentes do control plane DESLIGADOS: no OKE o control plane é gerenciado
+#    pela Oracle e não é acessível para scrape (daria targets "down" para sempre).
+#  - Admission webhook DESLIGADO: remove os Jobs de certgen e uma peça frágil.
+#
+# Complementa (não substitui) o metrics-server: o kube-prometheus não expõe a
+# Metrics API, então `kubectl top` e HPA continuam dependendo dele.
+#
+# Senha do Grafana: Secret `grafana-admin` criado FORA do Git (ver README).
+#
+# sync-wave "2": depois de cert-manager (-1), ingress (0) e metrics-server (1).
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: kube-prometheus-stack
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: https://prometheus-community.github.io/helm-charts
+    chart: kube-prometheus-stack
+    targetRevision: 92.16.1
+    helm:
+      releaseName: kube-prometheus-stack
+      valuesObject:
+        # ---- Desligados (sem sentido no OKE / sem uso) ----
+        alertmanager:
+          enabled: false
+        kubeEtcd:
+          enabled: false
+        kubeScheduler:
+          enabled: false
+        kubeControllerManager:
+          enabled: false
+        kubeProxy:
+          enabled: false
+        defaultRules:
+          rules:
+            etcd: false
+            kubeSchedulerAlerting: false
+            kubeSchedulerRecording: false
+            kubeControllerManager: false
+            kubeProxy: false
+            alertmanager: false
+
+        # ---- Prometheus (emptyDir, retention curta) ----
+        prometheus:
+          prometheusSpec:
+            retention: 3d
+            retentionSize: 2GB
+            # Sem storageSpec => emptyDir (sem persistência).
+            resources:
+              requests:
+                cpu: 100m
+                memory: 400Mi
+              limits:
+                cpu: 500m
+                memory: 900Mi
+            # Descobre ServiceMonitors/PodMonitors/regras de qualquer release.
+            serviceMonitorSelectorNilUsesHelmValues: false
+            podMonitorSelectorNilUsesHelmValues: false
+            ruleSelectorNilUsesHelmValues: false
+
+        # ---- Operator ----
+        prometheusOperator:
+          admissionWebhooks:
+            enabled: false
+          tls:
+            enabled: false
+          resources:
+            requests:
+              cpu: 20m
+              memory: 64Mi
+            limits:
+              cpu: 100m
+              memory: 128Mi
+
+        # ---- Grafana (dashboards provisionados por ConfigMap; sem persistência) ----
+        grafana:
+          enabled: true
+          admin:
+            existingSecret: grafana-admin
+            userKey: admin-user
+            passwordKey: admin-password
+          persistence:
+            enabled: false
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              cpu: 300m
+              memory: 256Mi
+          sidecar:
+            resources:
+              requests:
+                cpu: 10m
+                memory: 32Mi
+              limits:
+                cpu: 100m
+                memory: 64Mi
+
+        # ---- Exporters ----
+        kube-state-metrics:
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              cpu: 100m
+              memory: 128Mi
+        prometheus-node-exporter:
+          resources:
+            requests:
+              cpu: 10m
+              memory: 16Mi
+            limits:
+              cpu: 100m
+              memory: 64Mi
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: monitoring
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      # Obrigatório: os CRDs do prometheus-operator são grandes demais para a
+      # annotation last-applied do apply comum.
+      - ServerSideApply=true
