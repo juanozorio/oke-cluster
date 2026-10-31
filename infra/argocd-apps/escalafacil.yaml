@@ -1,0 +1,38 @@
+# escalafacil (https://escalafacil.ozorio.dev.br) gerenciado pelo ArgoCD.
+#
+# Fluxo de deploy: edite charts/escala-servir/values-prod.yaml (image.tag),
+# abra PR / dê push na master e o ArgoCD faz o rollout. Não use `kubectl set image`
+# nem `helm upgrade`: com selfHeal ligado o ArgoCD reverte qualquer mudança manual.
+#
+# O chart mora AQUI (repo público) e não no repo do app (escala-aguias, privado),
+# porque o ArgoCD só lê repositórios públicos sem credencial extra.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: escalafacil
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/juanozorio/oke-cluster.git
+    targetRevision: master
+    path: charts/escala-servir
+    helm:
+      # Mantém o prefixo dos recursos (escalafacil-escala-servir) idêntico ao da
+      # instalação original feita com `helm install escalafacil`.
+      releaseName: escalafacil
+      valueFiles:
+        - values-prod.yaml
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: escala
+  syncPolicy:
+    # Adoção segura: sync MANUAL na primeira vez. Depois de confirmar que o diff
+    # é vazio, descomente o bloco automated e dê push.
+    # automated:
+    #   prune: true
+    #   selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

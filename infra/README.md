@@ -10,8 +10,25 @@ está instalado" passa a ser este repositório, não o estado solto no cluster.
 infra/argocd-apps/
   cert-manager.yaml    # Application do cert-manager  (sync-wave -1, sobe primeiro)
   ingress-nginx.yaml   # Application do ingress-nginx (sync-wave 0)
+  escalafacil.yaml     # Application do escalafacil (chart em charts/escala-servir)
+  baofeng-airsoft.yaml # Application do baofeng (chart no repo baofeng-airsoft-docs)
   root-app.yaml        # App-of-Apps (Nível 3) — OPCIONAL, para bootstrap 1-comando
+charts/escala-servir/  # chart Helm do escalafacil; produção em values-prod.yaml
 ```
+
+## O que vai (e o que NÃO vai) para o Git
+
+O ArgoCD guarda cada `Application` como um objeto dentro do cluster. **Criar ou
+editar um app pela interface do ArgoCD não grava nada no Git.** Se o cluster for
+recriado, tudo que só existe na UI some (foi o caso do `baofeng-airsoft` até ser
+exportado para cá). Regras:
+
+- Crie/edite `Application` como YAML nesta pasta e dê push. A UI serve para
+  **ver** estado, diff e logs, e para disparar sync.
+- Mudança manual em recurso vivo (`kubectl edit`, `kubectl set image`, UI) fica
+  como *drift*: com `selfHeal` o ArgoCD desfaz; sem ele, o app aparece `OutOfSync`.
+- Credenciais de repositório e `Secret`s também ficam só no cluster; o `Secret`
+  não vai para o Git (veja os `*.example.yaml`).
 
 As versões estão **pinadas** exatamente nas que já rodam hoje:
 | Add-on | Chart | App version |

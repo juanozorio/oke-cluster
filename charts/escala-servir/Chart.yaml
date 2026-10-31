@@ -1,0 +1,6 @@
+apiVersion: v2
+name: escala-servir
+description: EscalaServir — Sistema de escalas da Igreja Águias de Cristo (SPA estática servida por Nginx)
+type: application
+version: 0.1.0
+appVersion: 0.1.0
