@@ -20,8 +20,7 @@ terraform.tfstate*
 # Ignore SSH keys
 id_rsa*
 
-# Ignore output shell
-output-gen*
+# Arquivo de plano do Terraform (pode conter valores sensíveis)
 tfplan
 
 # file with credentials (pega env.sh E .env.sh -- este tem suas credenciais OCI)

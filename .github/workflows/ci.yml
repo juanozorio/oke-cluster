@@ -1,0 +1,81 @@
+name: ci
+
+# CI do cluster pessoal do Juan. Tudo OFFLINE: não usa credencial da OCI nem do
+# cluster, então é seguro rodar em qualquer PR sem segredos no GitHub.
+#
+#  - terraform:  formatação e validade do Terraform (não roda plan/apply)
+#  - kubernetes: renderiza tudo que o ArgoCD vai aplicar (helm/kustomize) e valida
+#                contra os esquemas do Kubernetes 1.34 e dos CRDs
+#
+# Os dois checks são OBRIGATÓRIOS para mergear na master (branch protection).
+# Se renomear um job, atualize a proteção da branch (veja o README, seção "Proteção
+# da master"), senão os PRs ficam esperando um check que nunca roda.
+
+on:
+  push:
+    branches: ["master"]
+  pull_request:
+    branches: ["master"]
+
+# Cancela runs antigos do mesmo branch/PR quando um novo push chega.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  terraform:
+    name: "terraform: fmt + validate"
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.5.7" # mesma versão que o Juan roda localmente
+          terraform_wrapper: false
+
+      - name: terraform fmt (check)
+        run: terraform fmt -check -recursive -diff
+
+      # validate precisa de init, mas SEM backend (não queremos tocar o S3 nem
+      # pedir credencial). -backend=false resolve os módulos e providers e valida
+      # a configuração offline.
+      - name: terraform init (sem backend)
+        run: terraform init -backend=false -input=false
+
+      - name: terraform validate
+        run: terraform validate -no-color
+
+  kubernetes:
+    name: "kubernetes: helm + kustomize + schema"
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Helm
+        uses: azure/setup-helm@v4
+        with:
+          version: "v3.19.2" # mesma versão que o Juan roda localmente
+
+      - name: Instalar kubeconform (versão fixa)
+        run: |
+          curl -sSL -o /tmp/kc.tgz \
+            https://github.com/yannh/kubeconform/releases/download/v0.6.7/kubeconform-linux-amd64.tar.gz
+          sudo tar xzf /tmp/kc.tgz -C /usr/local/bin kubeconform
+          kubeconform -v
+
+      - name: Instalar PyYAML
+        run: pip install --quiet pyyaml
+
+      # Renderiza cada Application como o ArgoCD faria e valida o resultado.
+      # Rode o mesmo comando localmente: python3 scripts/validate_kubernetes.py
+      - name: Validar manifestos do Kubernetes
+        run: python3 scripts/validate_kubernetes.py
