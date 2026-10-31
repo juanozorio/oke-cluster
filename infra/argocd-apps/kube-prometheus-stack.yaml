@@ -100,9 +100,10 @@ spec:
             requests:
               cpu: 50m
               memory: 128Mi
+            # 256Mi dava OOMKilled no boot (o Grafana carrega dezenas de APIs).
             limits:
               cpu: 300m
-              memory: 256Mi
+              memory: 512Mi
           sidecar:
             resources:
               requests:
