@@ -47,8 +47,8 @@ O repositório tem **duas camadas** com ferramentas diferentes. A regra de ouro:
 | Pasta / arquivo | Para que serve | Gerenciado por |
 | --- | --- | --- |
 | [`variables.tf`](variables.tf) | **Painel de controle do cluster:** versão do k8s, imagem dos nós, nº de nós, CPU/RAM, portas. Quase tudo que você muda na infra está aqui. | Terraform |
-| [`terrafile.tf`](terrafile.tf) | Liga os módulos entre si (compartment → VCN → rede → cluster → NLB → kubeconfig) e define os `output`s. | Terraform |
-| [`main.tf`](main.tf) | Versões exigidas do Terraform e dos providers. | Terraform |
+| [`main.tf`](main.tf) | Liga os módulos entre si (compartment → VCN → rede → cluster → NLB → kubeconfig) e define os `output`s. | Terraform |
+| [`versions.tf`](versions.tf) | Versões exigidas do Terraform e dos providers. | Terraform |
 | [`backend.tf`](backend.tf) | Guarda o state no bucket S3 `oke-tf-state`. | Terraform |
 | [`compartment/`](compartment/) | Módulo: cria o compartment `k8s` na OCI. | Terraform |
 | [`network/`](network/) | Módulo: sub-redes pública/privada e *security lists* (firewall). | Terraform |
@@ -63,7 +63,8 @@ O repositório tem **duas camadas** com ferramentas diferentes. A regra de ouro:
 | [`argocd/values.yml`](argocd/values.yml) | Valores do Helm do próprio ArgoCD (recursos, domínio, ingress). | ArgoCD (self-managed) |
 | [`ingress/`](ingress/) | Só documentação e um modelo: como expor um app novo (registro DNS **por host**, sem wildcard; Ingress com TLS). Nada aqui é aplicado ao cluster. | — |
 | [`infra/cluster-issuers/`](infra/cluster-issuers/) | O `ClusterIssuer` `letsencrypt-prod` (emissor de certificados). Apagá-lo quebra a renovação de todos os certificados. | ArgoCD |
-| [`.github/workflows/`](.github/workflows/) | CI: `terraform fmt` + `validate` em cada PR/push (não aplica nada). | GitHub Actions |
+| [`.github/workflows/ci.yml`](.github/workflows/ci.yml) | CI em cada PR/push, tudo offline: `terraform fmt`+`validate` e a validação do Kubernetes (helm/kustomize + esquemas). Os dois checks são obrigatórios para mergear (ver [Proteção da master](#proteção-da-master)). | GitHub Actions |
+| [`scripts/`](scripts/) | `validate_kubernetes.py`: renderiza cada Application como o ArgoCD faria e valida. Rode localmente antes de abrir um PR (ver [Validar antes do PR](#validar-antes-do-pr)). | CI / você |
 | `ssh/`, `.env.sh` | **Não versionados** (`.gitignore`): chave SSH dos nós e credenciais da OCI. Guarde um backup fora do repo. | Local |
 
 ### Coisas que NÃO estão no Git (e por quê)
@@ -111,7 +112,7 @@ flowchart TB
 
 ```mermaid
 flowchart LR
-    root["main.tf / terrafile.tf<br/>(raiz)"]
+    root["main.tf<br/>(raiz)"]
     root --> compartment["./compartment<br/>cria o compartment k8s"]
     root --> vcn["módulo oficial<br/>oracle/vcn (3.6.0)<br/>VCN + gateways"]
     root --> network["./network<br/>subnets + security lists"]
@@ -128,6 +129,37 @@ flowchart LR
 ```
 
 ---
+
+## Validar antes do PR
+
+O CI roda a mesma validação, mas dá para rodá-la local em ~20 s:
+
+```sh
+# uma vez: helm, kubectl, kubeconform (https://github.com/yannh/kubeconform) e PyYAML
+python3 scripts/validate_kubernetes.py
+```
+
+Ela renderiza cada `Application` de `infra/argocd-apps/` como o ArgoCD faria (chart
+com a mesma versão e os mesmos values, ou kustomize) e valida contra os esquemas do
+Kubernetes 1.34 e dos CRDs. **Pega:** YAML quebrado ou mal indentado, tipo errado
+(`prune: "sim"`), campo desconhecido, chart que não renderiza. **Não pega:** valor
+bem formado porém errado (um typo em `resources.limits`, que aceita qualquer chave, ou
+uma tag de imagem trocada). Para isso ainda vale ler o diff.
+
+## Proteção da master
+
+A `master` exige PR com os dois checks do CI verdes (`terraform: fmt + validate` e
+`kubernetes: helm + kustomize + schema`), vale também para o dono, e não aceita
+force-push nem exclusão. Motivo: os Applications leem a `master` com `selfHeal`, então
+qualquer push direto vira mudança em produção em minutos.
+
+Fluxo: branch -> PR -> esperar os checks (`gh pr checks <n> --watch`) -> merge.
+Emergência (o CI quebrou e é preciso mergear mesmo assim): remova a proteção, faça a
+correção e recoloque.
+
+```sh
+gh api -X DELETE repos/juanozorio/oke-cluster/branches/master/protection
+```
 
 ## Pré-requisitos (uma vez)
 
@@ -217,6 +249,14 @@ Se o `destroy` falhar (erro `CompartmentAlreadyExists`, cluster preso etc.), apa
 ---
 
 ## Problemas conhecidos
+
+- **Aviso `hashicorp/oci` no `terraform init`:** os módulos locais (`cluster/`, `compartment/`,
+  `loadbalancer/`, `network/`) usam recursos `oci_*` sem declarar `required_providers`, então
+  o Terraform assume o provider antigo `hashicorp/oci` (por isso ele está no
+  `.terraform.lock.hcl`). Os 16 recursos desses módulos estão no state sob esse provider.
+  É inofensivo. Corrigir exige declarar `oracle/oci` nos módulos **e** rodar
+  `terraform state replace-provider hashicorp/oci oracle/oci`, que reescreve o state no S3:
+  faça com backup do state e confira que o `plan` dá "No changes" antes e depois.
 
 - **`Out of host capacity`** — a região não tem instância A1 livre no momento. Espere ou tente outra região (`region` em `variables.tf`). Upgrade para `Pay As You Go` aumenta a disponibilidade sem cobrar pelo uso gratuito.
 - **`401-NotAuthenticated` / `kubectl` parou** — token da OCI expirou:
