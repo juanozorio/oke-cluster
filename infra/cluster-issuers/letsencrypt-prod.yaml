@@ -1,0 +1,23 @@
+# ClusterIssuer do Let's Encrypt (produção), usado por todos os Ingress com a
+# annotation `cert-manager.io/cluster-issuer: letsencrypt-prod`.
+#
+# Desafio HTTP-01 resolvido pelo ingress-nginx. Por isso cada hostname precisa de
+# um registro DNS A apontando para o NLB (129.213.129.75): não há wildcard.
+#
+# Gerenciado pelo Application infra/argocd-apps/cluster-issuers.yaml.
+# NÃO mude `privateKeySecretRef`: ele aponta para a conta ACME já registrada
+# (Secret letsencrypt-prod-key); trocar o nome registraria uma conta nova.
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: letsencrypt-prod
+spec:
+  acme:
+    server: https://acme-v02.api.letsencrypt.org/directory
+    email: juan_ozorio@outlook.com
+    privateKeySecretRef:
+      name: letsencrypt-prod-key
+    solvers:
+      - http01:
+          ingress:
+            ingressClassName: nginx

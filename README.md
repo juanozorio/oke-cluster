@@ -61,9 +61,9 @@ O repositório tem **duas camadas** com ferramentas diferentes. A regra de ouro:
 | [`apps/monitoring/`](apps/monitoring/) | Só documentação: como acessar Grafana/Prometheus. A instalação está em `infra/argocd-apps/kube-prometheus-stack.yaml`. | — |
 | [`charts/escala-servir/`](charts/escala-servir/) | Chart Helm do escalafacil. **`values-prod.yaml` é o único arquivo que você edita** no dia a dia. | ArgoCD |
 | [`argocd/values.yml`](argocd/values.yml) | Valores do Helm do próprio ArgoCD (recursos, domínio, ingress). | ArgoCD (self-managed) |
-| [`gateway/`](gateway/) | ⚠️ **Nome enganoso:** vem de quando se usava Envoy Gateway; hoje o ingress é o nginx. Guarda o `ClusterIssuer` do Let's Encrypt (`cluster-issuer.yml`) e um modelo de Ingress (`httproutes.yml`). **Atenção:** o `ClusterIssuer` foi aplicado à mão e **não** é gerenciado pelo ArgoCD. | Manual (`kubectl apply`) |
+| [`ingress/`](ingress/) | Só documentação e um modelo: como expor um app novo (registro DNS **por host**, sem wildcard; Ingress com TLS). Nada aqui é aplicado ao cluster. | — |
+| [`infra/cluster-issuers/`](infra/cluster-issuers/) | O `ClusterIssuer` `letsencrypt-prod` (emissor de certificados). Apagá-lo quebra a renovação de todos os certificados. | ArgoCD |
 | [`.github/workflows/`](.github/workflows/) | CI: `terraform fmt` + `validate` em cada PR/push (não aplica nada). | GitHub Actions |
-| [`main.sh`](main.sh) | ⚠️ Resto do projeto original (loop de `terraform apply` com login por sessão). Está **sem uso**: a autenticação atual é por chave de API. | — |
 | `ssh/`, `.env.sh` | **Não versionados** (`.gitignore`): chave SSH dos nós e credenciais da OCI. Guarde um backup fora do repo. | Local |
 
 ### Coisas que NÃO estão no Git (e por quê)
@@ -201,7 +201,7 @@ Regra de ouro: o patch do **worker** nunca pode ser maior que o do **control pla
 
 ## Load Balancer
 
-O NLB já expõe as portas 80 e 443. Basta um `Service` do tipo `NodePort` com `nodePort: 30080` (HTTP) / `30443` (HTTPS). Veja os manifests em [`apps/`](apps/) e o gateway/ingress em [`gateway/`](gateway/).
+O NLB já expõe as portas 80 e 443. Basta um `Service` do tipo `NodePort` com `nodePort: 30080` (HTTP) / `30443` (HTTPS). Veja os manifests em [`apps/`](apps/) e, para expor um app novo (DNS + Ingress + TLS), o passo a passo em [`ingress/`](ingress/).
 
 ---
 

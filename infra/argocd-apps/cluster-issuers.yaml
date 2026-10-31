@@ -1,0 +1,33 @@
+# ClusterIssuers do cert-manager (Let's Encrypt) sob GitOps.
+#
+# Antes era aplicado à mão (kubectl apply) e não estava em nenhum Application:
+# um cluster novo ficaria sem emissor e nenhum certificado seria emitido.
+#
+# Cuidados:
+#  - SEM finalizer e prune: FALSE. Apagar o ClusterIssuer quebra a emissão e a
+#    renovação de todos os certificados do cluster; nunca deve acontecer por
+#    consequência de apagar um arquivo ou o Application.
+#  - sync-wave "0": depois do cert-manager (-1), cujos CRDs e webhook precisam
+#    existir antes. Se o webhook ainda não estiver pronto o Argo tenta de novo.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: cluster-issuers
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/juanozorio/oke-cluster.git
+    targetRevision: master
+    path: infra/cluster-issuers
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: cert-manager
+  syncPolicy:
+    automated:
+      prune: false
+      selfHeal: true
+    syncOptions:
+      - ServerSideApply=true
