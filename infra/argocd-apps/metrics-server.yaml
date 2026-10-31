@@ -1,0 +1,46 @@
+# metrics-server: habilita `kubectl top` e HPA (Metrics API).
+# Guarda só o valor atual de CPU/memória (sem histórico); é leve (~20m CPU).
+# Para histórico, alertas e dashboards seria preciso kube-prometheus-stack, que
+# NÃO substitui o metrics-server (não expõe a Metrics API por padrão).
+#
+# sync-wave "1": sobe depois do ingress-nginx e do cert-manager.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: metrics-server
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: https://kubernetes-sigs.github.io/metrics-server/
+    chart: metrics-server
+    targetRevision: 3.14.0
+    helm:
+      releaseName: metrics-server
+      valuesObject:
+        replicas: 1
+        resources:
+          requests:
+            cpu: 20m
+            memory: 40Mi
+          limits:
+            cpu: 100m
+            memory: 100Mi
+        args:
+          # O kubelet do OKE usa certificado não assinado pela CA do cluster.
+          # Só habilite se o metrics-server logar "x509: cannot validate certificate".
+          # - --kubelet-insecure-tls
+          - --kubelet-preferred-address-types=InternalIP
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: kube-system
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - ServerSideApply=true

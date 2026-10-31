@@ -8,11 +8,9 @@ metadata:
 spec:
   project: default
   source:
-    # IMPORTANTE: troque pelo repo GitHub onde você vai versionar apps/tududi/.
-    # O ArgoCD puxa manifests de um repo Git remoto (não de pastas locais).
-    # Ex. (seguindo seu padrão): https://github.com/juanozorio/oke-gitops
-    repoURL: https://github.com/juanozorio/CHANGE-ME
-    targetRevision: main
+    # O ArgoCD puxa manifests deste repositório (público) na branch master.
+    repoURL: https://github.com/juanozorio/oke-cluster.git
+    targetRevision: master
     # Caminho da pasta dos manifests dentro do repo acima.
     path: apps/tududi
   destination:
