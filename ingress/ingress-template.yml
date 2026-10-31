@@ -1,11 +1,12 @@
 ###############################################################
-# Ingress routes para ozorio.dev.br
+# MODELO de Ingress para ozorio.dev.br (nada aqui é aplicado)
 # TLS automático via cert-manager + Let's Encrypt
 #
 # Como usar:
-#   1. Copie o template abaixo
-#   2. Substitua MEUAPP, NAMESPACE, NOME-DO-SERVICE e PORTA
-#   3. kubectl apply -f gateway/httproutes.yml
+#   1. Crie o registro DNS A do host -> 129.213.129.75 (ver README.md desta pasta)
+#   2. Copie o bloco abaixo para apps/<app>/ingress.yaml (ou o template do chart)
+#   3. Substitua MEUAPP, NAMESPACE, NOME-DO-SERVICE e PORTA e descomente
+#   4. Merge na master: o ArgoCD aplica. Não use `kubectl apply` à mão.
 ###############################################################
 
 # ---
