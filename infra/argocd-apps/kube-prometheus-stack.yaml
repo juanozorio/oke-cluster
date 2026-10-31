@@ -5,8 +5,8 @@
 #  - SEM volume persistente: Prometheus usa emptyDir. Um PVC custaria 50 GB de
 #    block volume (mínimo da OCI) e o free tier já está acima de 200 GB. O
 #    histórico some quando o pod do Prometheus é recriado; retention curta.
-#  - SEM Alertmanager (ninguém para notificar) e SEM Ingress público do Grafana:
-#    acesso por port-forward (ver apps/monitoring/README.md).
+#  - SEM Alertmanager (ninguém para notificar). Grafana exposto por Ingress em
+#    https://grafana.ozorio.dev.br (precisa do registro DNS; ver README).
 #  - Componentes do control plane DESLIGADOS: no OKE o control plane é gerenciado
 #    pela Oracle e não é acessível para scrape (daria targets "down" para sempre).
 #  - Admission webhook DESLIGADO: remove os Jobs de certgen e uma peça frágil.
@@ -96,6 +96,35 @@ spec:
             passwordKey: admin-password
           persistence:
             enabled: false
+          # Exposto em https://grafana.ozorio.dev.br (TLS Let's Encrypt via cert-manager).
+          # PRÉ-REQUISITO: registro DNS A grafana.ozorio.dev.br -> 129.213.129.75 no
+          # registro.br (não há wildcard). Sem ele o certificado não é emitido.
+          # O Grafana bloqueia o login por 5 min após 5 tentativas erradas (padrão);
+          # o rate limit do nginx abaixo é uma segunda camada.
+          grafana.ini:
+            server:
+              domain: grafana.ozorio.dev.br
+              root_url: https://grafana.ozorio.dev.br
+            users:
+              allow_sign_up: false
+            analytics:
+              reporting_enabled: false
+              check_for_updates: false
+          ingress:
+            enabled: true
+            ingressClassName: nginx
+            annotations:
+              cert-manager.io/cluster-issuer: letsencrypt-prod
+              nginx.ingress.kubernetes.io/ssl-redirect: "true"
+              nginx.ingress.kubernetes.io/limit-rps: "10"
+              nginx.ingress.kubernetes.io/limit-connections: "20"
+            hosts:
+              - grafana.ozorio.dev.br
+            path: /
+            tls:
+              - secretName: grafana-tls
+                hosts:
+                  - grafana.ozorio.dev.br
           resources:
             requests:
               cpu: 50m
