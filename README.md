@@ -19,7 +19,7 @@ Cluster [OKE](https://www.oracle.com/cloud/cloud-native/container-engine-kuberne
 | Exposição | Network Load Balancer (NLB) nas portas 80/443 | gratuito no Always Free |
 | State | **S3 `oke-tf-state`** (`us-east-1`) | ver [State remoto](#state-remoto-s3) |
 
-Tudo acima são `default`s em [`variables.tf`](variables.tf) — mexer num lugar só muda o cluster.
+Tudo acima são `default`s em [`terraform/variables.tf`](terraform/variables.tf) — mexer num lugar só muda o cluster.
 
 ---
 
@@ -27,49 +27,49 @@ Tudo acima são `default`s em [`variables.tf`](variables.tf) — mexer num lugar
 
 O repositório tem **duas camadas** com ferramentas diferentes. A regra de ouro:
 
-> **Recurso da OCI** (cluster, rede, NLB, nós) → **Terraform** (`*.tf` e pastas de módulo).
-> **Coisa que roda dentro do Kubernetes** (apps, add-ons) → **ArgoCD** (`infra/`, `apps/`, `charts/`).
+> **Recurso da OCI** (cluster, rede, NLB, nós) → **Terraform** (pasta [`terraform/`](terraform/)).
+> **Coisa que roda dentro do Kubernetes** (apps, add-ons) → **ArgoCD** (pasta [`kubernetes/`](kubernetes/)).
+>
+> Para mexer em algo, abra a pasta com o nome dele: o `application.yaml` e a configuração ficam lado a lado.
 
 ### Onde mexo para fazer X?
 
 | Quero... | Edite | Como aplica |
 | --- | --- | --- |
-| Trocar versão do Kubernetes ou imagem dos nós | [`variables.tf`](variables.tf) | `terraform apply` (depois ciclar os nós, ver [Atualizar a imagem](#atualizar-a-imagem-do-worker-patches-de-segurança)) |
-| Mudar rede, NLB, nº de nós | `network/`, `loadbalancer/`, `variables.tf` | `terraform apply` |
-| Publicar versão nova do escalafacil | [`charts/escala-servir/values-prod.yaml`](charts/escala-servir/values-prod.yaml) (`image.tag`) | merge na `master` → ArgoCD |
-| Mudar o tududi (config, recursos, backup) | [`apps/tududi/`](apps/tududi/) | merge na `master` → ArgoCD |
-| Instalar/atualizar um add-on (ingress, cert-manager, Prometheus...) | [`infra/argocd-apps/`](infra/argocd-apps/) | merge na `master` → ArgoCD |
-| Mudar memória/CPU do próprio ArgoCD | [`argocd/values.yml`](argocd/values.yml) | merge na `master` → ArgoCD |
-| Adicionar um app novo | um `Application` novo em `infra/argocd-apps/` | merge na `master` → ArgoCD |
+| Trocar versão do Kubernetes ou imagem dos nós | [`terraform/variables.tf`](terraform/variables.tf) | `tofu apply` em `terraform/` (depois ciclar os nós, ver [Atualizar a imagem](#atualizar-a-imagem-do-worker-patches-de-segurança)) |
+| Mudar rede, NLB, nº de nós | `terraform/network/`, `terraform/loadbalancer/`, `terraform/variables.tf` | `tofu apply` em `terraform/` |
+| Publicar versão nova do escalafacil | [`kubernetes/apps/escalafacil/chart/values-prod.yaml`](kubernetes/apps/escalafacil/chart/values-prod.yaml) (`image.tag`) | merge na `master` → ArgoCD |
+| Mudar o tududi (config, recursos, backup) | [`kubernetes/apps/tududi/`](kubernetes/apps/tududi/) | merge na `master` → ArgoCD |
+| Mudar a configuração de um add-on (ingress, cert-manager, Prometheus, ArgoCD...) | `kubernetes/addons/<nome>/values.yaml` | merge na `master` → ArgoCD |
+| Subir a versão de um add-on | `kubernetes/addons/<nome>/application.yaml` (`targetRevision`) | merge na `master` → ArgoCD |
+| Adicionar um app ou add-on novo | uma pasta nova em `kubernetes/apps/` ou `kubernetes/addons/` com um `application.yaml` | merge na `master` → ArgoCD |
 
 ### Por pasta
 
 | Pasta / arquivo | Para que serve | Gerenciado por |
 | --- | --- | --- |
-| [`variables.tf`](variables.tf) | **Painel de controle do cluster:** versão do k8s, imagem dos nós, nº de nós, CPU/RAM, portas. Quase tudo que você muda na infra está aqui. | Terraform |
-| [`main.tf`](main.tf) | Liga os módulos entre si (compartment → VCN → rede → cluster → NLB → kubeconfig) e define os `output`s. | Terraform |
-| [`versions.tf`](versions.tf) | Versões exigidas do Terraform e dos providers. | Terraform |
-| [`backend.tf`](backend.tf) | Guarda o state no bucket S3 `oke-tf-state`. | Terraform |
-| [`compartment/`](compartment/) | Módulo: cria o compartment `k8s` na OCI. | Terraform |
-| [`network/`](network/) | Módulo: sub-redes pública/privada e *security lists* (firewall). | Terraform |
-| [`cluster/`](cluster/) | Módulo: o cluster OKE e o *node pool* (os 4 nós A1). | Terraform |
-| [`loadbalancer/`](loadbalancer/) | Módulo: o Network Load Balancer (portas 80/443 → NodePort 30080/30443 dos nós). | Terraform |
-| [`kubeconfig/`](kubeconfig/) | Módulo: gera o `~/.kube/config` ao final do apply. | Terraform |
-| [`infra/argocd-apps/`](infra/argocd-apps/) | **O índice de tudo que roda no cluster:** um `Application` do ArgoCD por arquivo (ArgoCD, ingress-nginx, cert-manager, metrics-server, Prometheus/Grafana, tududi, escalafacil, baofeng). O `root-app.yaml` observa esta pasta. | ArgoCD |
-| [`infra/README.md`](infra/README.md) | Como adotar algo já instalado, como remover um app com segurança, bootstrap de um cluster novo. | — |
-| [`apps/tududi/`](apps/tududi/) | Manifestos do tududi (Deployment, Service, Ingress, NetworkPolicy, Litestream). [`BACKUP.md`](apps/tududi/BACKUP.md) explica backup e restore. | ArgoCD |
-| [`apps/monitoring/`](apps/monitoring/) | Só documentação: como acessar Grafana/Prometheus. A instalação está em `infra/argocd-apps/kube-prometheus-stack.yaml`. | — |
-| [`charts/escala-servir/`](charts/escala-servir/) | Chart Helm do escalafacil. **`values-prod.yaml` é o único arquivo que você edita** no dia a dia. | ArgoCD |
-| [`argocd/values.yml`](argocd/values.yml) | Valores do Helm do próprio ArgoCD (recursos, domínio, ingress). | ArgoCD (self-managed) |
-| [`ingress/`](ingress/) | Só documentação e um modelo: como expor um app novo (registro DNS **por host**, sem wildcard; Ingress com TLS). Nada aqui é aplicado ao cluster. | — |
-| [`infra/cluster-issuers/`](infra/cluster-issuers/) | O `ClusterIssuer` `letsencrypt-prod` (emissor de certificados). Apagá-lo quebra a renovação de todos os certificados. | ArgoCD |
+| [`terraform/variables.tf`](terraform/variables.tf) | **Painel de controle do cluster:** versão do k8s, imagem dos nós, nº de nós, CPU/RAM, portas. Quase tudo que você muda na infra está aqui. | Terraform |
+| [`terraform/main.tf`](terraform/main.tf) | Liga os módulos entre si (compartment → VCN → rede → cluster → NLB → kubeconfig) e define os `output`s. | Terraform |
+| [`terraform/versions.tf`](terraform/versions.tf) | Versões exigidas do Terraform e dos providers. | Terraform |
+| [`terraform/backend.tf`](terraform/backend.tf) | Guarda o state no bucket S3 `oke-tf-state`. | Terraform |
+| [`terraform/compartment/`](terraform/compartment/) | Módulo: cria o compartment `k8s` na OCI. | Terraform |
+| [`terraform/network/`](terraform/network/) | Módulo: sub-redes pública/privada e *security lists* (firewall). | Terraform |
+| [`terraform/cluster/`](terraform/cluster/) | Módulo: o cluster OKE e o *node pool* (os 4 nós A1). | Terraform |
+| [`terraform/loadbalancer/`](terraform/loadbalancer/) | Módulo: o Network Load Balancer (portas 80/443 → NodePort 30080/30443 dos nós). | Terraform |
+| [`terraform/kubeconfig/`](terraform/kubeconfig/) | Módulo: gera o `~/.kube/config` ao final do apply. | Terraform |
+| [`kubernetes/bootstrap/root-app.yaml`](kubernetes/bootstrap/root-app.yaml) | O **único** arquivo que se aplica à mão: o App-of-Apps que descobre todos os outros. | ArgoCD |
+| [`kubernetes/addons/`](kubernetes/addons/) | Infraestrutura de terceiros, uma pasta por add-on (ArgoCD, cert-manager, cluster-issuers, ingress-nginx, metrics-server, Prometheus/Grafana). Cada uma tem `application.yaml` (chart e versão) e `values.yaml` (configuração). | ArgoCD |
+| [`kubernetes/apps/`](kubernetes/apps/) | Seus aplicativos, uma pasta por app: [`tududi/`](kubernetes/apps/tududi/) (manifests + [`BACKUP.md`](kubernetes/apps/tududi/BACKUP.md)), [`escalafacil/`](kubernetes/apps/escalafacil/) (chart Helm; **`chart/values-prod.yaml` é o arquivo que você edita**) e [`baofeng-airsoft/`](kubernetes/apps/baofeng-airsoft/). | ArgoCD |
+| [`kubernetes/addons/cluster-issuers/`](kubernetes/addons/cluster-issuers/) | O `ClusterIssuer` `letsencrypt-prod` (emissor de certificados). Apagá-lo quebra a renovação de todos os certificados. | ArgoCD |
+| [`kubernetes/README.md`](kubernetes/README.md) | Como adotar algo já instalado, como remover um app com segurança, bootstrap de um cluster novo. | — |
+| [`kubernetes/ingress/`](kubernetes/ingress/) | Só documentação e um modelo: como expor um app novo (registro DNS **por host**, sem wildcard; Ingress com TLS). Nada aqui é aplicado ao cluster. | — |
 | [`.github/workflows/ci.yml`](.github/workflows/ci.yml) | CI em cada PR/push, tudo offline: `terraform fmt`+`validate` e a validação do Kubernetes (helm/kustomize + esquemas). Os dois checks são obrigatórios para mergear (ver [Proteção da master](#proteção-da-master)). | GitHub Actions |
 | [`scripts/`](scripts/) | `validate_kubernetes.py`: renderiza cada Application como o ArgoCD faria e valida. Rode localmente antes de abrir um PR (ver [Validar antes do PR](#validar-antes-do-pr)). | CI / você |
-| `ssh/`, `.env.sh` | **Não versionados** (`.gitignore`): chave SSH dos nós e credenciais da OCI. Guarde um backup fora do repo. | Local |
+| `ssh/`, `.env.sh` | **Não versionados** (`.gitignore`): chave SSH dos nós e credenciais da OCI, na raiz do repo. Guarde um backup fora do repo. | Local |
 
 ### Coisas que NÃO estão no Git (e por quê)
 
-Segredos ficam só no cluster: `tududi-secrets` e `tududi-litestream-s3` (modelos `*.example.yaml` em [`apps/tududi/`](apps/tududi/)) e `grafana-admin` (o comando para criá-lo está em [`apps/monitoring/README.md`](apps/monitoring/README.md)). Se recriar o cluster, recrie-os antes do bootstrap (veja [`infra/README.md`](infra/README.md)).
+Segredos ficam só no cluster: `tududi-secrets` e `tududi-litestream-s3` (modelos `*.example.yaml` em [`kubernetes/apps/tududi/manifests/`](kubernetes/apps/tududi/manifests/)) e `grafana-admin` (o comando para criá-lo está em [`kubernetes/addons/kube-prometheus-stack/README.md`](kubernetes/addons/kube-prometheus-stack/README.md)). Se recriar o cluster, recrie-os antes do bootstrap (veja [`kubernetes/README.md`](kubernetes/README.md)).
 
 ---
 
@@ -112,7 +112,7 @@ flowchart TB
 
 ```mermaid
 flowchart LR
-    root["main.tf<br/>(raiz)"]
+    root["terraform/main.tf<br/>(raiz)"]
     root --> compartment["./compartment<br/>cria o compartment k8s"]
     root --> vcn["módulo oficial<br/>oracle/vcn (3.6.0)<br/>VCN + gateways"]
     root --> network["./network<br/>subnets + security lists"]
@@ -139,7 +139,7 @@ O CI roda a mesma validação, mas dá para rodá-la local em ~20 s:
 python3 scripts/validate_kubernetes.py
 ```
 
-Ela renderiza cada `Application` de `infra/argocd-apps/` como o ArgoCD faria (chart
+Ela renderiza cada `kubernetes/{addons,apps}/<nome>/application.yaml` como o ArgoCD faria (chart
 com a mesma versão e os mesmos values, ou kustomize) e valida contra os esquemas do
 Kubernetes 1.34 e dos CRDs. **Pega:** YAML quebrado ou mal indentado, tipo errado
 (`prune: "sim"`), campo desconhecido, chart que não renderiza. **Não pega:** valor
@@ -171,16 +171,19 @@ gh api -X DELETE repos/juanozorio/oke-cluster/branches/master/protection
 2. **OCI CLI** configurado em `~/.oci/config` (perfil `DEFAULT`, auth por API key).
 3. **AWS CLI** configurado (perfil `default`) — é o que dá acesso ao bucket de state `oke-tf-state`.
 4. **kubectl**.
-5. Variáveis de ambiente da OCI (tenancy, user, fingerprint, chave) no `env.sh` — **não versionado** (está no `.gitignore`). Carregue com:
+5. Variáveis de ambiente da OCI (tenancy, user, fingerprint, chave) no `.env.sh` na **raiz do repo** — **não versionado** (está no `.gitignore`). Carregue com:
    ```sh
-   source ./env.sh
+   source ./.env.sh
    ```
 
 ---
 
 ## Subir / atualizar o cluster
 
+Os comandos do Terraform rodam **de dentro de `terraform/`** (o `.env.sh` fica na raiz):
+
 ```sh
+source ./.env.sh && cd terraform
 tofu init        # primeira vez com S3 pede migração do state (ver abaixo)
 tofu plan        # confira o que vai mudar
 tofu apply
@@ -198,7 +201,7 @@ kubectl get nodes
 
 ## State remoto (S3)
 
-O state **não** fica mais em arquivo local. Vive em `s3://oke-tf-state/oke-free/terraform.tfstate` (região `us-east-1`), configurado em [`backend.tf`](backend.tf).
+O state **não** fica mais em arquivo local. Vive em `s3://oke-tf-state/oke-free/terraform.tfstate` (região `us-east-1`), configurado em [`terraform/backend.tf`](terraform/backend.tf).
 
 **Migração do state local para o S3 (uma vez só):**
 ```sh
@@ -212,7 +215,7 @@ aws s3api put-bucket-versioning --bucket oke-tf-state \
   --versioning-configuration Status=Enabled
 ```
 
-> Lock de state: não há DynamoDB aqui porque você opera o cluster sozinho. Se um dia quiser trava contra `apply` simultâneo, use um binário recente (OpenTofu ≥ 1.8 / Terraform ≥ 1.10) e adicione `use_lockfile = true` no `backend.tf`.
+> Lock de state: não há DynamoDB aqui porque você opera o cluster sozinho. Se um dia quiser trava contra `apply` simultâneo, use um binário recente (OpenTofu ≥ 1.8 / Terraform ≥ 1.10) e adicione `use_lockfile = true` no `terraform/backend.tf`.
 
 ---
 
@@ -225,7 +228,7 @@ oci ce node-pool-options get --node-pool-option-id all --profile DEFAULT \
   --query 'data.sources[?contains("source-name",`OKE-1.34`) && contains("source-name",`aarch64`)]."source-name"'
 ```
 
-Pegue o `image-id` da mais nova (mesma minor do control plane, ex.: `1.34.x`), troque o `default` de `image_id` em [`variables.tf`](variables.tf) e rode `tofu apply`. A troca **drena cada nó antes de recriar** (`eviction_grace_duration = PT5M` no node pool), então não derruba tudo de uma vez.
+Pegue o `image-id` da mais nova (mesma minor do control plane, ex.: `1.34.x`), troque o `default` de `image_id` em [`terraform/variables.tf`](terraform/variables.tf) e rode `tofu apply`. A troca **drena cada nó antes de recriar** (`eviction_grace_duration = PT5M` no node pool), então não derruba tudo de uma vez.
 
 Regra de ouro: o patch do **worker** nunca pode ser maior que o do **control plane** (`k8s_version`). Para subir o control plane, suba `k8s_version` primeiro, aplique, e só então a imagem do worker.
 
@@ -233,14 +236,14 @@ Regra de ouro: o patch do **worker** nunca pode ser maior que o do **control pla
 
 ## Load Balancer
 
-O NLB já expõe as portas 80 e 443. Basta um `Service` do tipo `NodePort` com `nodePort: 30080` (HTTP) / `30443` (HTTPS). Veja os manifests em [`apps/`](apps/) e, para expor um app novo (DNS + Ingress + TLS), o passo a passo em [`ingress/`](ingress/).
+O NLB já expõe as portas 80 e 443. Basta um `Service` do tipo `NodePort` com `nodePort: 30080` (HTTP) / `30443` (HTTPS). Veja os manifests em [`kubernetes/apps/`](kubernetes/apps/) e, para expor um app novo (DNS + Ingress + TLS), o passo a passo em [`kubernetes/ingress/`](kubernetes/ingress/).
 
 ---
 
 ## Deletar tudo
 
 ```sh
-tofu destroy
+cd terraform && tofu destroy
 ```
 
 Se o `destroy` falhar (erro `CompartmentAlreadyExists`, cluster preso etc.), apague manualmente no console, nesta ordem:

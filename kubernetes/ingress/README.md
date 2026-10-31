@@ -4,7 +4,7 @@ Esta pasta só tem documentação e um modelo. Nada aqui é aplicado ao cluster.
 
 Caminho do tráfego: `internet → NLB (129.213.129.75) → NodePort 30080/30443 → ingress-nginx → Service → pod`.
 O TLS é emitido sozinho pelo cert-manager (Let's Encrypt) pelo `ClusterIssuer`
-`letsencrypt-prod`, que está em [`infra/cluster-issuers/`](../infra/cluster-issuers/).
+`letsencrypt-prod`, que está em [`addons/cluster-issuers/`](../addons/cluster-issuers/).
 Custo zero: tudo dentro do free tier.
 
 ## Passo a passo para um app novo
@@ -20,7 +20,7 @@ Custo zero: tudo dentro do free tier.
    por hostname). Confira antes de seguir: `getent hosts meuapp.ozorio.dev.br`.
 
 2. **Ingress:** copie [`ingress-template.yml`](ingress-template.yml) para a pasta do
-   app (`apps/<app>/ingress.yaml` ou o template do chart), troque `MEUAPP`,
+   app (`kubernetes/apps/<app>/manifests/ingress.yaml` ou o template do chart), troque `MEUAPP`,
    `NAMESPACE`, `NOME-DO-SERVICE` e `PORTA`, e descomente.
 
 3. **Publique pelo Git:** merge na `master`. O ArgoCD aplica e o cert-manager emite o

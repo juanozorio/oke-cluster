@@ -32,6 +32,5 @@ env.sh
 temp
 
 # Tududi - Secret real NUNCA deve ser versionado (apenas secret.example.yaml é commitado)
-apps/tududi/secret.yaml
-apps/tududi/secret.real.yaml
-apps/**/secret.yaml
+kubernetes/apps/**/secret.yaml
+kubernetes/apps/**/secret.real.yaml

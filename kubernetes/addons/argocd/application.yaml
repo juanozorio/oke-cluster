@@ -1,7 +1,7 @@
 # O próprio ArgoCD sob GitOps (self-managed). Chart argo-cd 10.1.2 (app v3.4.4),
 # a mesma versão instalada com `helm install` em 2026-07-06.
 #
-# Os valores NÃO ficam aqui: vêm de argocd/values.yml (fonte única, o mesmo arquivo
+# Os valores NÃO ficam aqui: vêm de values.yaml (nesta pasta; fonte única, o mesmo arquivo
 # que se usaria num `helm upgrade`). Isto exige o ArgoCD >= 2.6 (multi-source).
 #
 # CUIDADOS DE UM ARGOCD QUE SE GERENCIA:
@@ -13,9 +13,9 @@
 #    VAZIOS, mas o ArgoCD escreve neles em runtime (admin.password,
 #    server.secretkey, ...). Sem ignoreDifferences o selfHeal apagaria a chave de
 #    sessão e a senha do admin. Por isso o /data é ignorado.
-#  - Para mexer no ArgoCD: edite argocd/values.yml, abra PR e faça merge. Se o
+#  - Para mexer no ArgoCD: edite kubernetes/addons/argocd/values.yaml, abra PR e faça merge. Se o
 #    controller travar (OOM, por exemplo), o sync não roda: use
-#    `helm upgrade argocd argo/argo-cd --version 10.1.2 -n argocd -f argocd/values.yml`.
+#    `helm upgrade argocd argo/argo-cd --version 10.1.2 -n argocd -f kubernetes/addons/argocd/values.yaml`.
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
@@ -33,7 +33,7 @@ spec:
       helm:
         releaseName: argocd
         valueFiles:
-          - $values/argocd/values.yml
+          - $values/kubernetes/addons/argocd/values.yaml
     - repoURL: https://github.com/juanozorio/oke-cluster.git
       targetRevision: master
       ref: values

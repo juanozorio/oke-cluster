@@ -30,6 +30,10 @@ jobs:
     name: "terraform: fmt + validate"
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    # Todo o Terraform mora em terraform/ (módulos, backend e lockfile juntos).
+    defaults:
+      run:
+        working-directory: terraform
     steps:
       - name: Checkout
         uses: actions/checkout@v4

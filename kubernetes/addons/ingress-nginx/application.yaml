@@ -18,32 +18,17 @@ metadata:
     - resources-finalizer.argocd.argoproj.io
 spec:
   project: default
-  source:
-    repoURL: https://kubernetes.github.io/ingress-nginx
-    chart: ingress-nginx
-    targetRevision: 4.14.3
-    helm:
-      releaseName: ingress-nginx
-      valuesObject:
-        controller:
-          # Os limits abaixo NÃO estavam no `helm install` original: foram aplicados
-          # à mão no cluster. Entram aqui para o GitOps não os remover (e não
-          # recriar o controller sem necessidade).
-          resources:
-            requests:
-              cpu: 100m
-              memory: 90Mi
-            limits:
-              cpu: 300m
-              memory: 256Mi
-          service:
-            type: NodePort
-            nodePorts:
-              http: 30080
-              https: 30443
-            annotations:
-              oci-network-load-balancer.oraclecloud.com/security-list-management-mode: All
-              oci.oraclecloud.com/load-balancer-type: nlb
+  sources:
+    - repoURL: https://kubernetes.github.io/ingress-nginx
+      chart: ingress-nginx
+      targetRevision: 4.14.3
+      helm:
+        releaseName: ingress-nginx
+        valueFiles:
+          - $values/kubernetes/addons/ingress-nginx/values.yaml
+    - repoURL: https://github.com/juanozorio/oke-cluster.git
+      targetRevision: master
+      ref: values
   destination:
     server: https://kubernetes.default.svc
     namespace: ingress-nginx
